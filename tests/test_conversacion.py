@@ -31,7 +31,11 @@ from hugin.mente import recepcion  # noqa: E402
 class CasoLlamada(unittest.TestCase):
     def setUp(self):
         self.negocio = negocios.cargar("peluqueria")
-        self.llamada = recepcion.Conversacion(self.negocio.conocimiento)
+        # Sin agenda —aquí solo se toma nota—, así que el reloj se le pasa a
+        # la llamada. Con el de verdad, «el jueves» se contesta «hoy» cada
+        # jueves y la prueba se cae sola ese día.
+        self.llamada = recepcion.Conversacion(self.negocio.conocimiento,
+                                              ahora=entorno.AHORA)
 
     def decir(self, *frases):
         """Dice varias cosas seguidas y devuelve la última contestación."""

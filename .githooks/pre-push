@@ -1,9 +1,10 @@
 #!/bin/sh
 # Corre `make pruebas` antes de cada push: las tres suites y el lint.
 #
-# Existe porque hoy NO hay CI: un cobro rechazado bloquea Actions en toda la
-# cuenta desde el 2026-09-04, y los jobs salen en rojo sin llegar a coger
-# runner. Mientras siga asi, esto es la unica verificacion real que hay.
+# Existe porque hoy NO hay CI: este repo no tiene workflow en la raiz, y aunque
+# lo tuviera, un cobro rechazado bloquea Actions en toda la cuenta desde el
+# 2026-09-04 y los jobs salen en rojo sin llegar a coger runner. Mientras siga
+# asi, esto es la unica verificacion real que hay.
 #
 # NO se activa solo, hay que decirselo a git:
 #

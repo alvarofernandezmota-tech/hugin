@@ -5,9 +5,10 @@
 El badge es `estado-pruebas.json`, un fichero commiteado que shields.io lee
 para pintar «399 pasando · local 2026-09-18» en el README.
 
-Dice **local** a proposito. Hoy no hay CI: un cobro rechazado bloquea Actions
-en toda la cuenta desde el 2026-09-04 y los jobs salen en rojo sin llegar a
-coger runner. Un badge que insinuara «CI: passing» estaria vendiendo una
+Dice **local** a proposito. Hoy no hay CI: este repo no tiene workflow en la
+raiz, y aunque lo tuviera, un cobro rechazado bloquea Actions en toda la
+cuenta desde el 2026-09-04 y los jobs salen en rojo sin llegar a coger
+runner. Un badge que insinuara «CI: passing» estaria vendiendo una
 verificacion automatica que no existe. Lo que hay es alguien que corrio la
 suite en su maquina, este dia, y lo que promete el badge es exactamente eso.
 

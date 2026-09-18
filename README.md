@@ -86,10 +86,18 @@ comprobacion pasada.
 
 ### No hay CI, y el badge no finge que lo haya
 
-Un cobro rechazado bloquea GitHub Actions en toda la cuenta desde el
-2026-09-04: los jobs salen en rojo sin llegar a coger runner, asi que un
-check en rojo ahi no dice nada del codigo.
+No lo hay por dos motivos a la vez, y conviene no confundirlos:
 
+- **Este repo no tiene workflow en la raiz.** No hay `.github/workflows/`
+  aqui; el `lint.yml` que se ve dentro de `telegram/` llego con su historia
+  al juntar el producto y GitHub no lo mira, porque solo lee el `.github/`
+  de la raiz.
+- **Y aunque lo tuviera, no arrancaria.** Un cobro rechazado bloquea Actions
+  en toda la cuenta desde el 2026-09-04: en los repos que si tienen workflow
+  los jobs salen en rojo sin llegar a coger runner, asi que un check en rojo
+  ahi no dice nada del codigo.
+
+Poner un workflow ahora solo pintaria una cruz roja que no significa nada.
 Mientras siga asi, **`make pruebas` en local es la unica verificacion real**,
 y el badge de arriba dice literalmente «local» con la fecha de la medida, en
 vez de un «CI: passing» que seria mentira. Lo escribe `make estado`, que se

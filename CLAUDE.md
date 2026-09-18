@@ -84,10 +84,12 @@ Romper cualquiera de estas cuesta dinero o credibilidad en una llamada real.
 make pruebas     # las tres suites y el lint, de una vez
 ```
 
-**Hoy no hay CI.** Un cobro rechazado bloquea Actions en toda la cuenta desde
-el 2026-09-04: los jobs salen en rojo sin llegar a coger runner, así que un
-check en rojo ahí no dice nada del código. Mientras siga así, `make pruebas`
-en local es la única verificación real.
+**Hoy no hay CI**, y por dos motivos a la vez: este repo **no tiene
+`.github/workflows/` en la raíz** —el `lint.yml` de dentro de `telegram/` llegó
+con su historia y GitHub no lo mira, porque solo lee el de la raíz—, y aunque
+lo tuviera, un cobro rechazado bloquea Actions en toda la cuenta desde el
+2026-09-04 y los jobs salen en rojo sin llegar a coger runner. Mientras siga
+así, `make pruebas` en local es la única verificación real.
 
 El gancho que la corre antes de cada push **no viaja activado** —hay que
 engancharlo en cada clon con `git config core.hooksPath .githooks`—, y eso es

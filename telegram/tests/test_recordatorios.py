@@ -44,11 +44,11 @@ class CasoAvisos(CasoBot):
         from datetime import timedelta
         fechas = self.recordatorios.fechas
         cuando = fechas.ahora() + timedelta(minutes=10)
-        citas = self.agenda.cargar()
+        citas = self.agenda_vieja.cargar()
         citas.append({"id": 1, "texto": "médico", "fecha": cuando.date().isoformat(),
                       "hora": cuando.strftime("%H:%M"), "duracion": 60,
                       "creada": "2026-09-17 20:00"})
-        self.agenda.guardar(citas)
+        self.agenda_vieja.guardar(citas)
 
     def avisar(self, bot):
         import asyncio
@@ -123,6 +123,37 @@ class TestElBucleSeRecogeAlApagar(CasoAvisos):
         import asyncio
         recordatorios._tarea = None
         asyncio.run(recordatorios.parar(None))
+
+
+class TestElHuecoConElCerebro(CasoBot):
+    """El hueco real entre `/cita` (cerebro, fase 5) y `recordatorios`
+    (todavía midgaror), dejado a propósito en el ADR-024 y documentado en
+    `dobles.py`.
+
+    No es hipotético: `handlers/recordatorios.py` no se toca en esta fase
+    porque su lógica de a quién avisar vive en `diario/recordatorios.py`,
+    que sigue leyendo el `agenda.json` de MIDGAROR. Una cita apuntada con
+    `/cita` va al cerebro, a la carpeta del inquilino — un fichero
+    distinto. Esta prueba deja escrito el hueco para que no se olvide
+    hasta que le llegue su turno (la fase 5 mueve el canal entero, y
+    `recordatorios.py` con él).
+    """
+
+    def test_una_cita_por_cita_no_la_ve_recordatorios_todavia(self):
+        from handlers.cita import comando_cita
+        from hugin.personal import citas
+
+        self.enviar(comando_cita, "médico", "mañana", "a", "las", "10")
+
+        # Se escribió de verdad, y en el sitio nuevo: la carpeta del
+        # inquilino, no diario/agenda/datos/agenda.json de midgaror.
+        self.assertEqual(len(citas.cargar(self.inquilino)), 1)
+
+        # Pero lo que lee recordatorios.pendientes() es el agenda.json
+        # VIEJO —self.agenda_vieja en dobles.py—, y ese sigue vacío:
+        # /cita y recordatorios ya no comparten fichero.
+        self.assertEqual(self.agenda_vieja.cargar(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

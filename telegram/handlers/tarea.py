@@ -1,8 +1,9 @@
 """Handlers de /tarea y /tareas.
 
-Como el resto de bifrost, esto es solo interfaz: la lógica vive en
-midgaror/diario/tareas/tareas.py y aquí solo se traduce el mensaje de
-Telegram a una llamada y la respuesta a texto.
+La lógica vive en `hugin.personal.tareas` (el cerebro, ADR-024 fase 4);
+aquí solo se traduce el mensaje de Telegram a una llamada y la respuesta a
+texto. Movido del canal al cerebro en la fase 5, comando por comando, como
+ya hizo `/apunte`.
 """
 
 import asyncio
@@ -11,11 +12,10 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from utils.midgaror import modulo
+from hugin.personal import tareas
+from hugin.guardado.sincronizar import sincronizar
+from utils.inquilino import actual as inquilino_actual
 from utils.respuestas import breve, responder, responder_si_puedo
-
-tareas = modulo("tareas")
-sincronizar = modulo("sincronizar").sincronizar
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +40,14 @@ ICONO = {"empezar": "◐", "hecha": "✅", "reabrir": "○", "borrar": "🗑️"
 CON_TEXTO = {"editar": tareas.editar, "aplazar": tareas.aplazar}
 
 
-async def _subir() -> str:
-    # sincronizar() hace git commit y git push: hasta 90 s con mala red.
-    # Dentro de una corrutina eso congela el bot entero para todos los
-    # chats, no solo para quien mando el mensaje. to_thread lo saca del
-    # hilo del bucle de eventos, que sigue atendiendo lo demas.
+async def _subir(inq) -> str:
+    # sincronizar() hace git commit y git push si el inquilino guarda en
+    # fichero (con Postgres no hay nada que subir). Hasta 90 s con mala
+    # red: dentro de una corrutina eso congela el bot entero para todos
+    # los chats, no solo para quien mando el mensaje. to_thread lo saca
+    # del hilo del bucle de eventos, que sigue atendiendo lo demas.
     return breve(await asyncio.to_thread(
-        sincronizar, tareas.RUTA_DATOS, "diario: tareas desde bifrost"))
+        sincronizar, inq.ruta / tareas.FICHERO, f"tareas: {inq.nombre}"))
 
 
 def _cuando(t: dict) -> str:
@@ -64,25 +65,26 @@ async def comando_tarea(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     accion, resto = args[0], args[1:]
     try:
+        inq = inquilino_actual()
         if accion in SOLO_ID or accion in CON_TEXTO:
             if not resto or not resto[0].isdigit():
                 await responder(update, f"❌ Falta el número de la tarea.\n\n{AYUDA}")
                 return
             id_tarea, resto = int(resto[0]), resto[1:]
             if accion in SOLO_ID:
-                t = SOLO_ID[accion](id_tarea)
+                t = SOLO_ID[accion](id_tarea, inq)
             else:
                 if not resto:
                     falta = "el texto nuevo" if accion == "editar" else "el cuándo"
                     await responder(update, f"❌ Falta {falta}.\n\n{AYUDA}")
                     return
-                t = CON_TEXTO[accion](id_tarea, " ".join(resto))
-            subido = await _subir()
+                t = CON_TEXTO[accion](id_tarea, " ".join(resto), inq)
+            subido = await _subir(inq)
             await responder(update, 
                 f"{ICONO[accion]} [{t['id']}] {t['texto']}{_cuando(t)} · {subido}")
             return
-        t = tareas.agregar(" ".join(args))
-        subido = await _subir()
+        t = tareas.agregar(" ".join(args), inq)
+        subido = await _subir(inq)
         await responder(update, f"✅ [{t['id']}] {t['texto']}{_cuando(t)} · {subido}")
     except ValueError as e:
         await responder(update, f"⚠️ {e}")
@@ -94,7 +96,7 @@ async def comando_tarea(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def comando_tareas(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/tareas — en proceso, pendientes por fecha y últimas hechas."""
     try:
-        await responder(update, tareas.resumen())
+        await responder(update, tareas.resumen(inquilino_actual()))
     except Exception as e:
         logger.exception("Error en /tareas")
         await responder_si_puedo(update, f"❌ Error: {e}")

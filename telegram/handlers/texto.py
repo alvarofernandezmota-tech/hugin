@@ -33,19 +33,17 @@ from telegram.ext import ContextTypes
 
 from handlers.apunte import cuanto
 from hugin import apuntes as registro
+from hugin.personal import citas, habitos, tareas
 from hugin.personal import fechas as fechas_personal
 from utils.inquilino import actual as inquilino_actual
 from utils.midgaror import modulo
 from utils.respuestas import breve, dia, responder, responder_si_puedo
 
-agenda = modulo("agenda")
 conversar = modulo("conversar")
 entender = modulo("entender")
 fechas = modulo("fechas")
-habitos = modulo("habitos")
 organizar_texto = modulo("organizar_diario").organizar_texto
 sincronizar = modulo("sincronizar").sincronizar
-tareas = modulo("tareas")
 
 logger = logging.getLogger(__name__)
 
@@ -105,8 +103,9 @@ async def _enrutar(update: Update, e) -> None:
     elif e.intencion == "tarea":
         if not e.texto:
             raise ValueError("tarea sin texto")
-        t = tareas.agregar(e.texto)
-        subido = await _subir(tareas.RUTA_DATOS, "diario: tareas desde bifrost")
+        inq = inquilino_actual()
+        t = tareas.agregar(e.texto, inq)
+        subido = await _subir(inq.ruta / tareas.FICHERO, f"tareas: {inq.nombre}")
         cuando = ""
         if t.get("fecha"):
             cuando = f" · {t['fecha']}" + (f" {t['hora']}" if t.get("hora") else "")
@@ -114,17 +113,23 @@ async def _enrutar(update: Update, e) -> None:
     elif e.intencion == "cita":
         if not e.texto:
             raise ValueError("cita sin texto")
-        cita, solapan = agenda.agregar(e.texto)
-        subido = await _subir(agenda.RUTA_DATOS, "diario: citas desde bifrost")
+        inq = inquilino_actual()
+        cita, solapan = citas.agregar(e.texto, inq)
+        subido = await _subir(inq.ruta / citas.FICHERO, f"citas: {inq.nombre}")
         cuando = f"{cita['fecha']} {cita['hora']}" if cita.get("hora") else f"{cita['fecha']} (todo el día)"
         texto_conf = f"📅 [{cita['id']}] {cita['texto']} · {cuando} · {subido}"
-        aviso = agenda.aviso_choques(solapan)
+        aviso = citas.aviso_choques(solapan)
         await responder(update, f"{texto_conf}\n{aviso}" if aviso else texto_conf)
     elif e.intencion == "habito":
         if not e.nombre:
             raise ValueError("hábito sin nombre")
-        fecha, nombre, marca = habitos.marcar(e.nombre, hecho=e.hecho, fecha=e.cuando, valor=e.valor)
-        subido = await _subir(habitos.RUTA_DATOS, "diario: hábitos desde bifrost")
+        inq = inquilino_actual()
+        # habitos.marcar() SÍ resuelve lenguaje natural internamente
+        # (normalizar_fecha llama a fechas.normalizar hacia atrás) — a
+        # diferencia de apuntes.apuntar(), que a propósito no lo hace. No
+        # hay aquí el bug que sí había en la rama "apunte".
+        fecha, nombre, marca = habitos.marcar(e.nombre, hecho=e.hecho, fecha=e.cuando, inq=inq, valor=e.valor)
+        subido = await _subir(inq.ruta / habitos.FICHERO, f"habitos: {inq.nombre}")
         await responder(update, f"{habitos.formato(marca)} {nombre} — {fecha} · {subido}")
     elif e.intencion == "apunte":
         if not e.nombre:

@@ -1,6 +1,10 @@
 """Handlers de /habito y /habitos.
 
-Interfaz de midgaror/diario/habitos/habitos.py, igual que /tarea con tareas.
+La lógica vive en `hugin.personal.habitos` (el cerebro, ADR-024 fase 4),
+igual que /tarea con tareas. `fechas` sigue siendo el parser de midgaror
+—vía `utils.midgaror`— solo para partir el mensaje en (nombre, valor,
+fecha); es el mismo parser que `hugin.personal.fechas` (copia byte a
+byte), así que no cambia ni una respuesta.
 """
 
 import asyncio
@@ -10,12 +14,13 @@ import re
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from hugin.personal import habitos
+from hugin.guardado.sincronizar import sincronizar
+from utils.inquilino import actual as inquilino_actual
 from utils.midgaror import modulo
 from utils.respuestas import breve, responder, responder_si_puedo
 
 fechas = modulo("fechas")
-habitos = modulo("habitos")
-sincronizar = modulo("sincronizar").sincronizar
 
 logger = logging.getLogger(__name__)
 
@@ -81,14 +86,16 @@ async def comando_habito(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await responder(update, AYUDA)
         return
     try:
+        inq = inquilino_actual()
         nombre, valor, fecha = _partir(args)
-        fecha, nombre, marca = habitos.marcar(nombre, hecho=hecho, fecha=fecha, valor=valor)
-        # sincronizar() hace git commit y git push: hasta 90 s con mala red.
-        # Dentro de una corrutina eso congela el bot entero para todos los
-        # chats, no solo para quien mando el mensaje. to_thread lo saca del
-        # hilo del bucle de eventos, que sigue atendiendo lo demas.
+        fecha, nombre, marca = habitos.marcar(nombre, hecho=hecho, fecha=fecha, inq=inq, valor=valor)
+        # sincronizar() hace git commit y git push si el inquilino guarda en
+        # fichero. Hasta 90 s con mala red: dentro de una corrutina eso
+        # congela el bot entero para todos los chats, no solo para quien
+        # mando el mensaje. to_thread lo saca del hilo del bucle de
+        # eventos, que sigue atendiendo lo demas.
         subido = breve(await asyncio.to_thread(
-            sincronizar, habitos.RUTA_DATOS, "diario: hábitos desde bifrost"))
+            sincronizar, inq.ruta / habitos.FICHERO, f"habitos: {inq.nombre}"))
         await responder(update, f"{habitos.formato(marca)} {nombre} — {fecha} · {subido}")
     except ValueError as e:
         await responder(update, f"⚠️ {e}")
@@ -101,11 +108,12 @@ async def comando_habitos(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """/habitos [semana] [ayer | el lunes | AAAA-MM-DD]"""
     args = list(context.args)
     try:
+        inq = inquilino_actual()
         # El día puede ser varias palabras («antes de ayer»); lo entiende habitos.
         if args and args[0] == "semana":
-            texto = habitos.resumen_semana(" ".join(args[1:]) or None)
+            texto = habitos.resumen_semana(" ".join(args[1:]) or None, inq=inq)
         else:
-            texto = habitos.resumen_dia(" ".join(args) or None)
+            texto = habitos.resumen_dia(" ".join(args) or None, inq=inq)
         await responder(update, texto)
     except ValueError as e:
         await responder(update, f"⚠️ {e}")

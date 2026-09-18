@@ -12,6 +12,7 @@ from handlers.habito import comando_habito  # noqa: E402
 from handlers.hoy import TOPE_DIARIO, comando_hoy  # noqa: E402
 from handlers.secciones import comando_siento  # noqa: E402
 from handlers.tarea import comando_tarea  # noqa: E402
+from hugin.personal import citas, tareas  # noqa: E402
 
 
 class TestHoy(CasoBot):
@@ -36,8 +37,8 @@ class TestHoy(CasoBot):
         antes = self.entrada.read_text(encoding="utf-8")
         self.enviar(comando_hoy, self.hoy)
         self.assertEqual(self.entrada.read_text(encoding="utf-8"), antes)
-        self.assertFalse(self.tareas.RUTA_DATOS.exists())
-        self.assertFalse(self.agenda.RUTA_DATOS.exists())
+        self.assertFalse((self.inquilino.ruta / tareas.FICHERO).exists())
+        self.assertFalse((self.inquilino.ruta / citas.FICHERO).exists())
 
     def test_un_dia_sin_entrada_lo_dice_en_vez_de_crearla(self):
         r = self.enviar(comando_hoy, "2026-01-01")

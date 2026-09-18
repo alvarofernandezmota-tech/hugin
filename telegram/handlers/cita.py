@@ -1,8 +1,10 @@
 """Handlers de /cita y /agenda.
 
-Como el resto de bifrost, esto es solo interfaz: la lógica vive en
-midgaror/diario/agenda/agenda.py y aquí solo se traduce el mensaje de
-Telegram a una llamada y la respuesta a texto.
+La lógica vive en `hugin.personal.citas` (el cerebro, ADR-024 fase 4).
+Se llama `citas`, no `agenda`: ya existe `hugin.negocio.agenda`, la
+agenda de reserva de un negocio, y un nombre que no puede colisionar por
+accidente no se funde por descuido — pero los comandos de Telegram
+siguen siendo /cita y /agenda, que es como Álvaro ya los conoce.
 """
 
 import asyncio
@@ -11,11 +13,10 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from utils.midgaror import modulo
+from hugin.personal import citas
+from hugin.guardado.sincronizar import sincronizar
+from utils.inquilino import actual as inquilino_actual
 from utils.respuestas import breve, responder, responder_si_puedo
-
-agenda = modulo("agenda")
-sincronizar = modulo("sincronizar").sincronizar
 
 logger = logging.getLogger(__name__)
 
@@ -29,20 +30,21 @@ AYUDA = (
 )
 
 
-async def _subir() -> str:
-    # sincronizar() hace git commit y git push: hasta 90 s con mala red.
-    # Dentro de una corrutina eso congela el bot entero para todos los
-    # chats, no solo para quien mando el mensaje. to_thread lo saca del
-    # hilo del bucle de eventos, que sigue atendiendo lo demas.
+async def _subir(inq) -> str:
+    # sincronizar() hace git commit y git push si el inquilino guarda en
+    # fichero. Hasta 90 s con mala red: dentro de una corrutina eso
+    # congela el bot entero para todos los chats, no solo para quien
+    # mando el mensaje. to_thread lo saca del hilo del bucle de eventos,
+    # que sigue atendiendo lo demas.
     return breve(await asyncio.to_thread(
-        sincronizar, agenda.RUTA_DATOS, "diario: citas desde bifrost"))
+        sincronizar, inq.ruta / citas.FICHERO, f"citas: {inq.nombre}"))
 
 
 def _confirmacion(cita: dict, solapan: list[dict], subido: str) -> str:
     """La cita guardada y, si choca con otra, el aviso debajo."""
     cuando = f"{cita['fecha']} {cita['hora']}" if cita.get("hora") else f"{cita['fecha']} (todo el día)"
     texto = f"📅 [{cita['id']}] {cita['texto']} · {cuando} · {subido}"
-    aviso = agenda.aviso_choques(solapan)
+    aviso = citas.aviso_choques(solapan)
     return f"{texto}\n{aviso}" if aviso else texto
 
 
@@ -53,25 +55,26 @@ async def comando_cita(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await responder(update, AYUDA)
         return
     try:
+        inq = inquilino_actual()
         if args[0] in ("mover", "cancelar"):
             if len(args) < 2 or not args[1].isdigit():
                 await responder(update, f"❌ Falta el número de la cita.\n\n{AYUDA}")
                 return
             id_cita = int(args[1])
             if args[0] == "cancelar":
-                cita = agenda.cancelar(id_cita)
-                subido = await _subir()
+                cita = citas.cancelar(id_cita, inq)
+                subido = await _subir(inq)
                 await responder(update, 
                     f"🗑️ [{cita['id']}] {cita['texto']} · {cita['fecha']} · {subido}")
                 return
             if len(args) < 3:
                 await responder(update, f"❌ Falta el cuándo.\n\n{AYUDA}")
                 return
-            cita, solapan = agenda.mover(id_cita, " ".join(args[2:]))
-            await responder(update, _confirmacion(cita, solapan, await _subir()))
+            cita, solapan = citas.mover(id_cita, " ".join(args[2:]), inq)
+            await responder(update, _confirmacion(cita, solapan, await _subir(inq)))
             return
-        cita, solapan = agenda.agregar(" ".join(args))
-        await responder(update, _confirmacion(cita, solapan, await _subir()))
+        cita, solapan = citas.agregar(" ".join(args), inq)
+        await responder(update, _confirmacion(cita, solapan, await _subir(inq)))
     except ValueError as e:
         await responder(update, f"⚠️ {e}")
     except Exception as e:
@@ -86,9 +89,9 @@ async def comando_agenda(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if semana:
         args = args[1:]
     try:
-        # El día puede ser varias palabras («el lunes que viene»); lo entiende agenda.
+        # El día puede ser varias palabras («el lunes que viene»); lo entiende citas.
         await responder(update, 
-            agenda.resumen(" ".join(args) or None, semana=semana))
+            citas.resumen(" ".join(args) or None, inquilino_actual(), semana=semana))
     except ValueError as e:
         await responder(update, f"⚠️ {e}")
     except Exception as e:

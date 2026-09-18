@@ -17,9 +17,7 @@ from dobles import CasoBot  # noqa: E402  (instala el telegram falso)
 
 from handlers.apunte import (comando_apunte, comando_dia,  # noqa: E402
                              comando_semana, pintar)
-from utils.midgaror import modulo  # noqa: E402
-
-fechas = modulo("fechas")
+from hugin.personal import fechas  # noqa: E402
 
 # El doble fija en 2026-09-05 la ENTRADA del diario, pero registro.py resuelve
 # «hoy» de verdad: son dos cosas distintas y conviene no confundirlas. Estas

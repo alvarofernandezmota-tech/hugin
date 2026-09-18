@@ -43,8 +43,18 @@ def escribir(ruta: Path, texto: str) -> None:
         raise
 
 
-def cargar(ruta: Path, version: int, vacio):
-    """Los datos del fichero. Sin fichero, una copia de `vacio`."""
+def cargar(ruta: Path, version: int, vacio, migraciones: dict | None = None):
+    """Los datos del fichero. Sin fichero, una copia de `vacio`.
+
+    `migraciones` es opcional y aditivo — de la fase 4 del ADR-024, portado
+    de `diario/almacen.py` de midgaror. Sin él, el comportamiento de
+    siempre: un fichero de una versión distinta se lee tal cual, sin
+    intentar migrarlo. Con `{version_de_origen: función}`, se aplican en
+    orden hasta llegar a `version`. Hace falta de verdad, no por higiene:
+    `_v0_a_v1` de `diario/tareas/tareas.py` migra el fichero de tareas que
+    hoy está en producción; sin esto, portar ese modelo aquí perdería la
+    migración.
+    """
     ruta = Path(ruta)
     if not ruta.exists():
         return json.loads(json.dumps(vacio))
@@ -68,16 +78,41 @@ def cargar(ruta: Path, version: int, vacio):
 
     if isinstance(documento, dict) and CLAVE_VERSION in documento:
         encontrada = int(documento[CLAVE_VERSION])
-        if encontrada > version:
+        datos = documento.get(CLAVE_DATOS, json.loads(json.dumps(vacio)))
+    else:
+        # Sin envoltorio: formato viejo (versión 0), se envolverá al guardar.
+        encontrada, datos = 0, documento
+
+    if encontrada > version:
+        raise ValueError(
+            f"{ruta.name}: el fichero es del esquema {encontrada} y este "
+            f"código entiende hasta el {version}. Actualiza gjallarhorn.")
+
+    if migraciones is None:
+        # El comportamiento de siempre: nadie ha dicho cómo migrar, así que
+        # no se intenta. Sin esto, portar `migraciones` rompería a todo
+        # llamador existente que no lo conoce.
+        return datos
+
+    while encontrada < version:
+        migrar = migraciones.get(encontrada)
+        if migrar is None:
             raise ValueError(
-                f"{ruta.name}: el fichero es del esquema {encontrada} y este "
-                f"código entiende hasta el {version}. Actualiza gjallarhorn.")
-        return documento.get(CLAVE_DATOS, json.loads(json.dumps(vacio)))
-    # Sin envoltorio: formato viejo, se lee tal cual y se envolverá al guardar.
-    return documento
+                f"{ruta.name}: falta la migración del esquema {encontrada} al "
+                f"{encontrada + 1}")
+        datos = migrar(datos)
+        encontrada += 1
+    return datos
 
 
-def guardar(ruta: Path, datos, version: int) -> None:
-    """Escribe `{"schemaVersion": version, "datos": datos}`, de una pieza."""
+def guardar(ruta: Path, datos, version: int, ordenar_claves: bool = False) -> None:
+    """Escribe `{"schemaVersion": version, "datos": datos}`, de una pieza.
+
+    `ordenar_claves` existe por `habitos.json` (fase 4, ADR-024): va
+    indexado por fecha, y sin orden estable cada escritura cambia el
+    fichero entero, y el `git commit` que hace el bot en cada mensaje sale
+    con un diff ilegible (ADR-013).
+    """
     documento = {CLAVE_VERSION: version, CLAVE_DATOS: datos}
-    escribir(Path(ruta), json.dumps(documento, ensure_ascii=False, indent=2) + "\n")
+    texto = json.dumps(documento, ensure_ascii=False, indent=2, sort_keys=ordenar_claves)
+    escribir(Path(ruta), texto + "\n")

@@ -157,5 +157,62 @@ class TestEscribirSuelto(CasoAlmacen):
         self.assertTrue(os.path.exists(destino))
 
 
+class TestMigraciones(CasoAlmacen):
+    """Portado de la fase 4 del ADR-024: `_v0_a_v1` de tareas.py migra un
+    fichero que hoy está en producción, no es higiene."""
+
+    def _v0_a_v1(self, datos):
+        return [dict(t, estado="pendiente") for t in datos]
+
+    def test_un_fichero_v0_se_migra_hasta_la_version_pedida(self):
+        almacen.guardar(self.ruta, [{"id": 1}], 0)
+        self.assertEqual(
+            almacen.cargar(self.ruta, 1, vacio=[], migraciones={0: self._v0_a_v1}),
+            [{"id": 1, "estado": "pendiente"}])
+
+    def test_sin_migraciones_no_se_intenta_nada_como_siempre(self):
+        # El comportamiento de antes de que existiera el parámetro: un
+        # fichero de otra versión se lee tal cual, sin ValueError.
+        almacen.guardar(self.ruta, [{"id": 1}], 0)
+        self.assertEqual(almacen.cargar(self.ruta, 1, vacio=[]), [{"id": 1}])
+
+    def test_una_migracion_que_falta_lo_dice(self):
+        almacen.guardar(self.ruta, [{"id": 1}], 0)
+        with self.assertRaises(ValueError) as caso:
+            almacen.cargar(self.ruta, 2, vacio=[], migraciones={0: self._v0_a_v1})
+        self.assertIn("falta la migración del esquema 1", str(caso.exception))
+
+    def test_un_fichero_sin_envoltorio_tambien_se_migra(self):
+        # Formato viejo (versión 0, sin schemaVersion): igual que en
+        # midgaror, se reconoce por la forma y se migra igual.
+        almacen.escribir(self.ruta, json.dumps([{"id": 1}]))
+        self.assertEqual(
+            almacen.cargar(self.ruta, 1, vacio=[], migraciones={0: self._v0_a_v1}),
+            [{"id": 1, "estado": "pendiente"}])
+
+
+class TestOrdenarClaves(CasoAlmacen):
+    """Portado de la fase 4: sin esto, `habitos.json` cambia entero en cada
+    escritura y el commit del bot sale con un diff ilegible (ADR-013)."""
+
+    def test_guardar_dos_veces_da_el_mismo_fichero(self):
+        datos = {"2026-09-11": {"gimnasio": 1}, "2026-09-05": {"agua": True}}
+        almacen.guardar(self.ruta, datos, 1, ordenar_claves=True)
+        primera = self.ruta.read_text(encoding="utf-8")
+        almacen.guardar(self.ruta, dict(datos), 1, ordenar_claves=True)
+        self.assertEqual(self.ruta.read_text(encoding="utf-8"), primera)
+
+    def test_las_claves_salen_ordenadas_en_el_texto(self):
+        almacen.guardar(self.ruta, {"b": 1, "a": 2}, 1, ordenar_claves=True)
+        texto = self.ruta.read_text(encoding="utf-8")
+        self.assertLess(texto.index('"a"'), texto.index('"b"'))
+
+    def test_por_defecto_no_se_ordena(self):
+        # El comportamiento de siempre: nadie lo pide, nadie lo cambia.
+        almacen.guardar(self.ruta, {"b": 1, "a": 2}, 1)
+        texto = self.ruta.read_text(encoding="utf-8")
+        self.assertLess(texto.index('"b"'), texto.index('"a"'))
+
+
 if __name__ == "__main__":
     unittest.main()

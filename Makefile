@@ -39,31 +39,22 @@ pruebas: $(PY)  ## TODAS las pruebas y el lint: cerebro, telegram y telefono
 	@# un ".." dentro, y ese ruido tapa los avisos que si importan.
 	@# Se usa el python del venv y no el del sistema: con el de fuera el
 	@# paquete no esta instalado y las pruebas dicen cosas que no son.
-	@# telegram todavia importa el diario de midgaror (fases 4 y 5 del
-	@# ADR-024): sin MIDGAROR_RAIZ no se puede correr, y eso se DICE en vez
-	@# de saltarselo en silencio. Una comprobacion saltada no es una pasada.
-	@fallos=0; saltadas=0; \
+	@# Desde que la fase 5 del ADR-024 se cerro (entender/conversar al
+	@# cerebro), telegram/ ya no importa nada de midgaror: corre sin
+	@# MIDGAROR_RAIZ, igual que cerebro y telefono.
+	@fallos=0; \
 	echo "── cerebro ──"; \
 	$(PY) -m unittest discover -s tests || fallos=$$((fallos+1)); \
 	echo "── telefono ──"; \
 	( cd telefono && $(CURDIR)/$(PY) -m unittest discover -s tests ) || fallos=$$((fallos+1)); \
 	echo "── telegram ──"; \
-	if [ -n "$$MIDGAROR_RAIZ" ]; then \
-	  ( cd telegram && $(CURDIR)/$(PY) -m unittest discover -s tests ) || fallos=$$((fallos+1)); \
-	else \
-	  echo "⚠️  SALTADA: falta MIDGAROR_RAIZ. Las pruebas de telegram NO se han corrido."; \
-	  echo "   export MIDGAROR_RAIZ=/ruta/a/midgaror"; \
-	  saltadas=$$((saltadas+1)); \
-	fi; \
+	( cd telegram && $(CURDIR)/$(PY) -m unittest discover -s tests ) || fallos=$$((fallos+1)); \
 	echo "── lint ──"; \
 	if [ -x $(RUFF) ]; then $(RUFF) check . || fallos=$$((fallos+1)); \
 	else echo "⚠️  SIN RUFF: el lint NO se ha corrido."; fi; \
 	echo; \
 	if [ $$fallos -ne 0 ]; then \
 	  echo "❌ $$fallos comprobacion(es) en rojo. No subas esto."; exit 1; \
-	elif [ $$saltadas -ne 0 ]; then \
-	  echo "🟡 En verde lo que se ha corrido, pero $$saltadas comprobacion(es) SALTADA(s)."; \
-	  echo "   Una comprobacion saltada no es una comprobacion pasada."; \
 	else echo "✅ Todo en verde."; fi
 
 estado: $(PY)  ## mide las pruebas y reescribe estado-pruebas.json (el badge)

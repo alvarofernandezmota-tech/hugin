@@ -1,0 +1,31 @@
+# Antes esto vivia huerfano en telegram/.github/workflows/lint.yml, herencia
+# de cuando telegram/ era el repo bifrost por su cuenta: GitHub solo lee
+# .github/workflows/ en la RAIZ del repo, asi que ese fichero nunca llego a
+# correr, con o sin el bloqueo de cobro de la cuenta (docs/infra/estado-ci.md
+# en midgaror). Este es el equivalente en el sitio que GitHub si mira, y ya
+# no solo lint: `make pruebas` corre las tres suites (cerebro, telegram,
+# telefono) y el lint de una vez, que es la unica verificacion real mientras
+# Actions siga bloqueada a nivel de cuenta.
+name: Pruebas
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    name: cerebro + telegram + telefono + lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: make pruebas
+        run: make pruebas

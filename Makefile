@@ -66,4 +66,14 @@ pruebas: $(PY)  ## TODAS las pruebas y el lint: cerebro, telegram y telefono
 	  echo "   Una comprobacion saltada no es una comprobacion pasada."; \
 	else echo "✅ Todo en verde."; fi
 
-.PHONY: ayuda instalar pruebas
+estado: $(PY)  ## mide las pruebas y reescribe estado-pruebas.json (el badge)
+	@# El badge dice "local" a proposito: no hay CI (Actions no coge runner
+	@# por un cobro de la cuenta), y un badge verde que insinue lo contrario
+	@# es mentir en el escaparate. Lo que promete es lo que es: alguien lo
+	@# corrio en su maquina, este dia, y salio esto.
+	@#
+	@# Y no puede envejecer en silencio: tests/test_estado.py se cae si el
+	@# numero commiteado ya no es el de verdad.
+	$(PY) herramientas/estado.py
+
+.PHONY: ayuda instalar pruebas estado

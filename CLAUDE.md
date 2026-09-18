@@ -71,13 +71,35 @@ Romper cualquiera de estas cuesta dinero o credibilidad en una llamada real.
   dice y lo que entiende, editable · `agenda.py` los huecos de verdad.
 - `guardado/` — `ajustes.py` el `.env` · `datos.py` la carpeta de cada bot ·
   `almacen.py` JSON atómico · `copias.py` · `avisos.py`.
+- `inquilino.py` — quién es el inquilino y qué sabe hacer. Una persona o una
+  empresa, distinguidas por **capacidades** y no por un `tipo` cerrado
+  (ADR-024) · `apuntes.py` — las notas sueltas, portadas desde el diario.
 - `tests/` — y `tests/negocios/` con sus propios negocios de mentira.
+- `telegram/` y `telefono/` — las dos puertas. Son aplicaciones, no paquetes:
+  se arrancan desde su carpeta. El cerebro no las importa **nunca**.
 
 ## Verificar
 
 ```bash
-make pruebas     # 356 pruebas y el lint
+make pruebas     # las tres suites y el lint, de una vez
 ```
+
+**Hoy no hay CI**, y por dos motivos a la vez: este repo **no tiene
+`.github/workflows/` en la raíz** —el `lint.yml` de dentro de `telegram/` llegó
+con su historia y GitHub no lo mira, porque solo lee el de la raíz—, y aunque
+lo tuviera, un cobro rechazado bloquea Actions en toda la cuenta desde el
+2026-09-04 y los jobs salen en rojo sin llegar a coger runner. Mientras siga
+así, `make pruebas` en local es la única verificación real.
+
+El gancho que la corre antes de cada push **no viaja activado** —hay que
+engancharlo en cada clon con `git config core.hooksPath .githooks`—, y eso es
+a propósito: la copia del bot hace `git push` en cada mensaje de Telegram
+(ADR-013) y ahí una prueba en rojo sin relación bloquearía el diario.
+
+El badge del README lo escribe `make estado`, dice «local» con la fecha de la
+medida en vez de un «CI: passing» que sería mentira, y no puede envejecer en
+silencio: `tests/test_estado.py` cuenta las pruebas de verdad y se cae si ya
+no son las que promete.
 
 ## Commits
 

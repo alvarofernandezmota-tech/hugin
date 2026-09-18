@@ -22,6 +22,23 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
+# ---- Los datos de quien se atiende ----
+#
+# Este repo es PUBLICO y estas dos carpetas son el sitio por defecto donde
+# aterrizan los datos de un inquilino: `inquilino.carpeta()` devuelve
+# `cwd()/inquilinos` y `negocio.carpeta_negocios()` devuelve `cwd()/negocios`
+# cuando no se les dice otra cosa.
+#
+# Dentro va el nombre de alguien, sus precios, su agenda y su diario. Los dos
+# modulos lo avisan en su docstring, y un docstring no para un `git add -A`.
+#
+# La barra de delante NO es adorno: sin ella el patron casa a cualquier
+# profundidad y se llevaria por delante `tests/negocios/`, que son los negocios
+# de mentira de la suite y SI tienen que estar versionados (9 ficheros).
+# Hay prueba que lo sujeta: tests/test_privacidad.py.
+/inquilinos/
+/negocios/
+
 # ---- Sistema operativo / editor ----
 .DS_Store
 Thumbs.db

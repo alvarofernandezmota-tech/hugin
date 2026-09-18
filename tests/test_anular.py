@@ -13,10 +13,10 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-# La raiz del repo **es** el paquete `hugin`, asi que lo que tiene que
-# estar en el sys.path es la carpeta que lo contiene.
+# El cerebro es el paquete `hugin/` dentro del repo, asi que lo que tiene
+# que estar en el sys.path es la raiz del repo (ADR-024).
 RAIZ = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ.parent))
+sys.path.insert(0, str(RAIZ))
 
 import entorno  # noqa: E402,F401
 

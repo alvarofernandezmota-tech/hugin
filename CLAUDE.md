@@ -53,10 +53,13 @@ Romper cualquiera de estas cuesta dinero o credibilidad en una llamada real.
 - **El `.env` se lee con la última clave ganando**, como `EnvironmentFile=` de
   systemd. Al revés, la verificación ve una credencial y el servicio arranca
   con otra.
-- **El repositorio ES el paquete.** La carpeta se llama `hugin` y lo que la
-  contiene está en el `sys.path`. Los imports de casa son `hugin.mente`, nunca
-  `mente` a secas: lo segundo funciona al correr las pruebas desde la raíz y
-  se cae montado como submódulo, que es donde de verdad se usa.
+- **El cerebro es `hugin/`, dentro del repo** (ADR-024). Lo que va al
+  `sys.path` es la raíz del repositorio. Antes el paquete era la carpeta del
+  repo, lo que obligaba a clonarlo con ese nombre exacto para que
+  `import hugin` encontrara algo.
+  Los imports de casa son `hugin.mente`, nunca `mente` a secas: lo segundo
+  funciona al correr las pruebas desde la raíz y se cae en cuanto el paquete
+  se usa desde otro sitio.
 
 ## Estructura
 

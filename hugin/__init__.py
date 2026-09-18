@@ -17,9 +17,8 @@ la decision, no el import.
 
 ## Como se usa
 
-El repositorio **es** el paquete: la carpeta se llama `hugin` y lo que la
-contiene esta en el `sys.path`. Montado como submodulo en la raiz de la
-aplicacion, los imports salen solos:
+Este paquete vive en `hugin/`, dentro del repo del producto, y lo que va al
+`sys.path` es la raiz del repositorio (ADR-024). Los imports salen solos:
 
     from hugin.mente import recepcion
     from hugin.negocio import negocio as negocios

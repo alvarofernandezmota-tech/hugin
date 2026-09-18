@@ -255,6 +255,34 @@ class TestElEnrutadoDelMotor(unittest.TestCase):
         with self.limpio():
             self.assertIsNone(conversar.responder("¿qué tengo hoy?"))
 
+    def test_con_groq_elegido_se_llama_a_groq(self):
+        def falso_groq(pregunta, contexto):
+            return "contestado por Groq"
+
+        def explota(pregunta, contexto):
+            raise AssertionError("no debería haberse llamado a este motor")
+
+        with self.limpio(MIDGAROR_LLM="groq", GROQ_API_KEY="gsk-algo"), \
+             mock.patch.object(conversar, "_preguntar_groq", falso_groq), \
+             mock.patch.object(conversar, "_preguntar_claude", explota), \
+             mock.patch.object(conversar, "_preguntar_ollama", explota), \
+             mock.patch.object(conversar, "_preguntar_google", explota):
+            self.assertEqual(conversar.responder("¿qué tengo hoy?"), "contestado por Groq")
+
+    def test_con_google_elegido_se_llama_a_google(self):
+        def falso_google(pregunta, contexto):
+            return "contestado por Google"
+
+        def explota(pregunta, contexto):
+            raise AssertionError("no debería haberse llamado a este motor")
+
+        with self.limpio(MIDGAROR_LLM="google", GOOGLE_API_KEY="AI-algo"), \
+             mock.patch.object(conversar, "_preguntar_google", falso_google), \
+             mock.patch.object(conversar, "_preguntar_claude", explota), \
+             mock.patch.object(conversar, "_preguntar_ollama", explota), \
+             mock.patch.object(conversar, "_preguntar_groq", explota):
+            self.assertEqual(conversar.responder("¿qué tengo hoy?"), "contestado por Google")
+
 
 if __name__ == "__main__":
     unittest.main()

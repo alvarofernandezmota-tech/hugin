@@ -1,16 +1,13 @@
 # Plantilla: `make auto` la rellena. Un solo disparo cada vez; el timer manda.
 [Unit]
-Description=gjallarhorn: git pull --ff-only, trae el submódulo y reinicia si cambió algo
+Description=gjallarhorn: git pull --ff-only y reinicia si cambió algo
 
 [Service]
 Type=oneshot
 WorkingDirectory=@RAIZ@
-# El submódulo (hugin, ADR-019) se trae ANTES de reiniciar, y si no se puede
-# traer, no se reinicia: un `git pull` que solo mueve el puntero de
-# `.gitmodules` deja `hugin/` desactualizado —o vacío del todo, la primera
-# vez— y reiniciar así tira el proceso que SÍ tenía el cerebro cargado por
-# uno que revienta con ImportError en el primer mensaje. El teléfono se
-# queda mudo sin que nada lo diga, que es justo lo que el ADR-019 dice que
-# no puede pasar. `--recursive` porque hugin puede traer los suyos el día
-# de mañana.
-ExecStart=/bin/sh -c 'antes=$(git rev-parse HEAD); git pull -q --ff-only || exit 0; test "$antes" != "$(git rev-parse HEAD)" || exit 0; git submodule update --init --recursive || exit 0; make -s reiniciar'
+# Desde el ADR-024, hugin ya no es un submódulo (ADR-019, histórico): vive
+# dentro de este mismo repo, así que un `git pull` normal ya trae sus
+# cambios con todo lo demás. Antes había un `git submodule update
+# --init --recursive` aquí — con el repo unificado no hay submódulo que
+# traer, así que no hacía nada salvo alargar cada ciclo del timer.
+ExecStart=/bin/sh -c 'antes=$(git rev-parse HEAD); git pull -q --ff-only || exit 0; test "$antes" != "$(git rev-parse HEAD)" || exit 0; make -s reiniciar'

@@ -162,10 +162,7 @@ def palabras_dichas(frase: str, base: Path | None = None) -> set[str]:
     bajándole la cobertura a la búsqueda.
     """
     from hugin.negocio import frases as _frases
-    texto = _sin_tildes(frase)
-    sinonimos = _frases.cargar(base).sinonimos
-    for dicho in sorted(sinonimos, key=len, reverse=True):
-        texto = re.sub(rf"\b{re.escape(dicho)}\b", sinonimos[dicho], texto)
+    texto = _frases.cargar(base).sustituir_sinonimos(_sin_tildes(frase))
     return _palabras(texto)
 
 

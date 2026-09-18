@@ -31,7 +31,7 @@ sale en un informe**. Los informes llevan cuentas, no nombres.
 De lo que ya pasa en la llamada, no de preguntar más:
 
     entrada → apuntar_llamada(numero)
-    reserva → apuntar_cita(numero, servicio, fecha, hora)
+    reserva → apuntar_cita(numero, servicio, hora)
     anular  → apuntar_anulacion(numero)
 
 `telefonia.py` los llama en los mismos sitios donde antes escribía

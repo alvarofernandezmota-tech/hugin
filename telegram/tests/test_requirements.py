@@ -101,10 +101,19 @@ class TestLaPlantillaDelEnv(unittest.TestCase):
             with self.subTest(variable=variable):
                 self.assertIn(variable, variables)
 
+    def test_estan_las_de_groq_y_google(self):
+        # Mismo motivo que las de Ollama: sin nombrarlas aqui, MIDGAROR_LLM=
+        # groq o =google en un .env a mano no tiene ninguna pista de que
+        # clave hace falta.
+        variables = self.variables_de_la_plantilla()
+        for variable in ("GROQ_API_KEY", "GOOGLE_API_KEY"):
+            with self.subTest(variable=variable):
+                self.assertIn(variable, variables)
+
     def test_la_plantilla_no_lleva_ningun_valor_de_verdad(self):
         # Una plantilla con una clave dentro es una clave publicada.
         texto = (RAIZ / ".env.example").read_text(encoding="utf-8")
-        for pista in ("sk-ant-", "sk-or-v1-", ":AA"):
+        for pista in ("sk-ant-", "sk-or-v1-", ":AA", "gsk_", "AIzaSy"):
             with self.subTest(pista=pista):
                 self.assertNotIn(pista, texto)
 

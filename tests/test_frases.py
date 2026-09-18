@@ -223,3 +223,54 @@ class TestUnFicheroRotoNoTumbaLaLlamada(unittest.TestCase):
 
     def test_y_problemas_lo_dice_al_arrancar(self):
         self.assertTrue(any("TOML" in p for p in frases.problemas(self.base)))
+
+
+class TestUnFicheroConLaFormaEquivocadaTampocoTumbaLaLlamada(unittest.TestCase):
+    """Bug real: un TOML sintácticamente válido pero con [dice] como texto
+    suelto en vez de tabla no lanzaba TOMLDecodeError (el TOML es válido),
+    así que se colaba y reventaba más abajo con un ValueError/TypeError
+    crudo — la misma llamada caída que TestUnFicheroRotoNoTumbaLaLlamada
+    ya cubre para el caso de TOML mal escrito del todo.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.base = Path(self.tmp.name)
+        (self.base / "tarifas.md").write_text(
+            "| Servicio | Precio |\n|---|---|\n| Corte | 10 € |\n", encoding="utf-8")
+        # TOML válido: "dice" es una cadena, no una tabla [dice].
+        (self.base / "frases.toml").write_text('dice = "hola"\n', encoding="utf-8")
+        frases.olvidar()
+        self.addCleanup(frases.olvidar)
+
+    def test_se_carga_con_las_de_fabrica_en_vez_de_reventar(self):
+        cargadas = frases.cargar(self.base)
+        self.assertEqual(cargadas.dice["recado"], frases.DICE["recado"])
+
+    def test_la_llamada_sigue_atendiendose(self):
+        from hugin.mente import recepcion
+        llamada = recepcion.Conversacion(self.base)
+        self.assertIn("10 €", llamada.atender("¿cuánto vale un corte?").texto)
+
+
+class TestSustituirSinonimos(unittest.TestCase):
+    """Antes duplicado, literal, en rag.py y conocimiento.py."""
+
+    def test_los_mas_largos_primero(self):
+        propias = frases.Frases({}, {}, {
+            "corte": ["corte de pelo", "cortarme"],
+        })
+        self.assertEqual(propias.sustituir_sinonimos("quiero un corte de pelo"),
+                         "quiero un corte")
+
+    def test_sin_sinonimos_no_cambia_nada(self):
+        propias = frases.Frases({}, {}, {})
+        self.assertEqual(propias.sustituir_sinonimos("hola"), "hola")
+
+
+class TestDecirNoEvaluaElDefectoQueNoUsa(unittest.TestCase):
+    def test_una_clave_que_no_existe_en_ningun_sitio_se_queja_claro(self):
+        cargadas = frases.cargar(None)
+        with self.assertRaises(KeyError):
+            cargadas.decir("esto_no_es_una_frase_de_verdad")

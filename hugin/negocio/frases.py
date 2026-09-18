@@ -286,7 +286,14 @@ class Frases:
 
     def decir(self, clave: str, **datos) -> str:
         """La frase, con sus huecos puestos. No levanta nunca: ver el módulo."""
-        plantilla = self.dice.get(clave, DICE[clave])
+        # Sin el DICE[clave] que había de segundo argumento: self.dice ya
+        # lleva SIEMPRE las claves de DICE (cargar() parte de dict(DICE)),
+        # así que ese `.get()` nunca llegaba a usar su propio default — se
+        # evaluaba en cada llamada sin servir de nada, salvo para lanzar un
+        # KeyError crudo si `clave` no existía en ningún sitio: un error de
+        # quien programa (una clave mal escrita), no del negocio.
+        if (plantilla := self.dice.get(clave)) is None:
+            raise KeyError(f"{clave!r} no es ninguna frase que exista")
         try:
             return plantilla.format(**datos).strip()
         except (KeyError, IndexError, ValueError) as error:
@@ -297,6 +304,19 @@ class Frases:
         """¿Lo que ha dicho el cliente suena a esto? `comparable` va sin tildes."""
         patron = self.entiende.get(clave)
         return bool(patron and patron.search(comparable))
+
+    def sustituir_sinonimos(self, texto: str) -> str:
+        """`texto` con cada sinónimo cambiado por su palabra de la tabla.
+
+        De más largo a más corto: sin esto, un sinónimo que es prefijo de
+        otro más largo ("corte" dentro de "corte de pelo") se sustituiría
+        primero y dejaría el más largo a medias. Estaba duplicado, literal,
+        en `rag.py` y `conocimiento.py` — un sitio, no dos que puedan
+        separarse.
+        """
+        for dicho in sorted(self.sinonimos, key=len, reverse=True):
+            texto = re.sub(rf"\b{re.escape(dicho)}\b", self.sinonimos[dicho], texto)
+        return texto
 
     @staticmethod
     def _quejarse(clave, plantilla, error) -> None:
@@ -390,6 +410,18 @@ def cargar(base: Path | None = None) -> Frases:
             # aviso; hablar raro es mucho mejor que no hablar.
             _quejarse_del_fichero(fichero, error)
             propias = {}
+        for clave in ("dice", "entiende", "sinonimos"):
+            if clave in propias and not isinstance(propias[clave], dict):
+                # Sintácticamente válido ("dice = algo" en vez de "[dice]"
+                # con sus claves dentro) no lanza TOMLDecodeError, pero
+                # reventaba más abajo al tratar propias[clave] como una
+                # tabla: un ValueError/TypeError crudo, la misma llamada
+                # caída que este bloque existe para evitar.
+                _quejarse_del_fichero(
+                    fichero,
+                    f"[{clave}] tiene que ser una tabla, no {type(propias[clave]).__name__}")
+                propias = {}
+                break
         dice.update(propias.get("dice", {}))
         for intencion, trozos in propias.get("entiende", {}).items():
             # Se sustituye, no se suma: quien escribe su lista quiere la suya.

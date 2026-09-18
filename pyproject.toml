@@ -48,4 +48,4 @@ dev = ["ruff==0.15.8"]
 test = ["python-telegram-bot==22.8", "python-dotenv==1.2.3"]
 
 [tool.setuptools]
-packages = ["hugin", "hugin.mente", "hugin.negocio", "hugin.guardado"]
+packages = ["hugin", "hugin.mente", "hugin.negocio", "hugin.guardado", "hugin.personal"]

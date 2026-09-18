@@ -46,7 +46,15 @@ def _pares(fich: Path) -> list[tuple[str, str]]:
         if not linea or linea.startswith("#") or "=" not in linea:
             continue
         clave, valor = linea.split("=", 1)
-        pares.append((clave.strip(), valor.strip().strip("'\"")))
+        clave = clave.strip()
+        if not clave:
+            # "=algo" o "  =valor": sin nombre de variable. os.environ no
+            # acepta una clave vacia -revienta con OSError en leer()-, y una
+            # linea asi no es una variable con un valor raro, es una linea
+            # mal formada como cualquier otra: se ignora, igual que un
+            # comentario o una linea en blanco.
+            continue
+        pares.append((clave, valor.strip().strip("'\"")))
     return pares
 
 

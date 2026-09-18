@@ -74,6 +74,16 @@ class TestElHorario(unittest.TestCase):
         self.assertIsNone(agenda.Horario.desde(None))
         self.assertIsNone(agenda.Horario.desde({}))
 
+    def test_un_dia_que_no_es_una_lista_se_explica(self):
+        # Bug real: un valor que no fuera lista (un numero, un booleano, una
+        # tabla) reventaba con un TypeError crudo al iterarlo, no con el
+        # ValueError amigable de un tramo mal escrito.
+        with self.assertRaises(ValueError) as caso:
+            agenda.Horario.desde({"martes": 5})
+        self.assertIn("lista", str(caso.exception))
+        with self.assertRaises(ValueError):
+            agenda.Horario.desde({"martes": True})
+
 
 class TestLaDuracion(unittest.TestCase):
     def test_formatos_de_la_tabla(self):
@@ -87,10 +97,27 @@ class TestLaDuracion(unittest.TestCase):
         self.assertEqual(agenda.duracion_en_minutos(None), agenda.DURACION_POR_DEFECTO)
         self.assertEqual(agenda.duracion_en_minutos(""), agenda.DURACION_POR_DEFECTO)
 
+    def test_duraciones_dichas_con_palabras(self):
+        # Bug real: sin ningún dígito, "hora y media" caía siempre al
+        # defecto de 30 min — quedarse corto, al revés de "mejor pasarse".
+        self.assertEqual(agenda.duracion_en_minutos("una hora y media"), 90)
+        self.assertEqual(agenda.duracion_en_minutos("media hora"), 30)
+        self.assertEqual(agenda.duracion_en_minutos("un cuarto de hora"), 15)
+        self.assertEqual(agenda.duracion_en_minutos("tres cuartos de hora"), 45)
+        self.assertEqual(agenda.duracion_en_minutos("dos horas"), 120)
+
 
 class TestPorQueNo(CasoAgenda):
     def test_cerrado(self):
         self.assertEqual(self.agenda.por_que_no(LUNES, "10:00", 30), "cerrado")
+
+    def test_sin_horario_escrito_no_se_reserva_a_ciegas(self):
+        # Bug real: devolvía None (nada que objetar) sin comprobar siquiera
+        # que la fecha no hubiera pasado o que no chocara con otra cita —
+        # "se reserva contra el horario escrito o no se reserva".
+        sin_horario = agenda.Agenda(
+            "prueba", None, ruta=self.agenda.ruta, ahora=VIERNES)
+        self.assertEqual(sin_horario.por_que_no(MARTES, "10:00", 30), "cerrado")
 
     def test_fuera_de_horario(self):
         self.assertEqual(self.agenda.por_que_no(MARTES, "15:00", 30), "fuera")
@@ -203,6 +230,15 @@ class TestLaConversacionReserva(unittest.TestCase):
                            "a las cinco de la tarde", "Álvaro")
         self.assertIn("confirmamos", dicho)
         self.assertEqual(self.agenda.citas(), [])
+
+    def test_sin_agenda_el_resumen_guarda_el_nombre(self):
+        # Bug real: el resumen de una cita cerrada sin agenda no guardaba
+        # cita.nombre, a diferencia del mismo resumen con agenda.
+        llamada = recepcion.Conversacion(self.negocio.conocimiento)   # sin agenda
+        self.decir(llamada, "cita para un tinte", "el lunes",
+                  "a las cinco de la tarde", "Álvaro")
+        self.assertEqual(len(llamada.reservadas), 1)
+        self.assertEqual(llamada.reservadas[0]["nombre"], "Álvaro")
 
 
 if __name__ == "__main__":

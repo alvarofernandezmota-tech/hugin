@@ -656,7 +656,7 @@ class Conversacion:
             # nadie ha mirado es peor que no cogerlo.
             cita.cerrada = True
             self.reservadas.append({"servicio": cita.servicio, "hora": cita.hora,
-                                    "fecha": cita.fecha})
+                                    "fecha": cita.fecha, "nombre": cita.nombre})
             return Respuesta(self._y_algo_mas(self.frases.decir(
                 "cierra_cita", servicio=que, fecha=self._dicha(cita.fecha),
                 hora=fechas.hora_en_palabras(cita.hora), nombre=cita.nombre)), "cita")

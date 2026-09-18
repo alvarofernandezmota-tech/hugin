@@ -25,17 +25,22 @@ audio → voz.escuchar → recepcion.atender → voz.hablar → audio
 Las decisiones y sus porqués: [`CONTEXT.md`](CONTEXT.md). Cómo se usa:
 [`README.md`](README.md).
 
-## Independiente: no importa ningún otro repo
+## No importa ningún repo AJENO — pero SÍ importa `hugin`, en el mismo repo
 
-`mente/fechas.py`, `guardado/almacen.py` y `telefono/voz.py` son propios. Hubo unas horas en las que
-esto tiraba de otro repo y **se cortó a propósito**: un recepcionista de
-peluquería no tiene por qué arrastrar el repo del diario personal de nadie
-para arrancar.
+Desde el ADR-024, `telefono/` vive dentro del monorepo `hugin`, y `canal/` y
+`dueno/` importan `hugin.mente`, `hugin.negocio` y `hugin.guardado`
+normalmente: **no los copies**, ya están ahí para importar. Lo que sigue
+siendo cierto —y es la parte que importa de verdad de la decisión
+original— es que `hugin/` (el cerebro) **no importa nada de `telefono/` ni
+de ningún canal**: la regla vive en `hugin/CLAUDE.md` y la sujeta
+`hugin/tests/test_libreria.py` leyendo el árbol de sintaxis.
 
-Si alguna vez hace falta algo de otro repo, **cópialo aquí**. Son treinta
-líneas frente a una dependencia entre proyectos. Y ojo con copiar de un
-diario: un parser de fechas de diario resuelve hacia **atrás**, que es justo
-lo contrario de lo que necesita una cita.
+Si alguna vez hace falta algo de un repo de verdad AJENO a `hugin` (no de
+`hugin` mismo), ahí sí, **cópialo aquí** en vez de crear una dependencia
+entre proyectos. Y ojo con copiar de un parser de fechas de un diario: uno
+de diario resuelve hacia **atrás**, que es justo lo contrario de lo que
+necesita una cita — por eso `hugin.mente.fechas` es un parser propio, no el
+de `hugin.personal.fechas`.
 
 ## Estado actual
 

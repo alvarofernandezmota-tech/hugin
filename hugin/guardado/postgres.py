@@ -261,7 +261,13 @@ def guardar_citas(citas: list[dict], inq=None) -> None:
 
 def cargar_habitos(inq=None) -> dict:
     with conectar(inq) as conn:
-        filas = conn.execute("SELECT fecha, habito, valor FROM habitos_registro").fetchall()
+        # ORDER BY: sin el, el orden de las filas no esta garantizado, y el
+        # dict que se devuelve (indexado por fecha, en el orden en que se
+        # insertan sus claves) dejaria de tener la misma garantia que el
+        # backend de ficheros, que ordena a proposito al guardar
+        # (almacen.guardar(..., ordenar_claves=True) en personal/habitos.py).
+        filas = conn.execute(
+            "SELECT fecha, habito, valor FROM habitos_registro ORDER BY fecha").fetchall()
     datos: dict = {}
     for f in filas:
         datos.setdefault(_de_fecha(f["fecha"]), {})[f["habito"]] = f["valor"]

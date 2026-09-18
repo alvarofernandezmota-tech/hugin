@@ -375,9 +375,20 @@ class Centralita:
         if llamada is None:
             # Un turno de una llamada que no empezo por /entrada (reinicio del
             # servidor a mitad): se abre sobre la marcha en vez de colgar.
+            numero = campos.get("From", "")
             llamada = self._llamadas[sid] = recepcion.conversacion_de(self.negocio)
-            self._numeros[sid] = campos.get("From", "")
+            self._numeros[sid] = numero
             self._empezadas[sid] = self.ahora()
+            # Mismo reconocimiento que hace entrada(): sin esto, un reinicio
+            # a mitad de llamada le hacia perder a un cliente conocido su
+            # nombre y lo que suele pedir, y en fin() se tomaba por "no
+            # conocido" y podia pisarle el nombre real con lo que dijera
+            # despues en la llamada (p.ej. "a nombre de Lucia" de la cita).
+            conocido = cliente(numero)
+            if conocido is not None:
+                llamada.recordar(conocido)
+                if conocido.conocido:
+                    self._conocidos.add(sid)
 
         dicho = (campos.get("SpeechResult") or "").strip()
         if not dicho:

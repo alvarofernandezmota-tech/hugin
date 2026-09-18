@@ -24,9 +24,7 @@ from handlers.entrada import comando_entrada  # noqa: E402
 from handlers.habito import comando_habito, comando_habitos  # noqa: E402
 from handlers.hoy import comando_hoy  # noqa: E402
 from handlers.secciones import comando_aprendo, comando_siento  # noqa: E402
-from utils.midgaror import modulo  # noqa: E402
-
-fechas = modulo("fechas")
+from hugin.personal import fechas  # noqa: E402
 
 HOY_SEC = "## Qué ha pasado hoy"
 SIENTO = "## Cómo me siento"

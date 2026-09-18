@@ -40,10 +40,14 @@ async def _subir(inq) -> str:
         sincronizar, inq.ruta / citas.FICHERO, f"citas: {inq.nombre}"))
 
 
+def _cuando(cita: dict) -> str:
+    """«2026-09-18 10:00», o sin hora si la cita es de todo el día."""
+    return f"{cita['fecha']} {cita['hora']}" if cita.get("hora") else f"{cita['fecha']} (todo el día)"
+
+
 def _confirmacion(cita: dict, solapan: list[dict], subido: str) -> str:
     """La cita guardada y, si choca con otra, el aviso debajo."""
-    cuando = f"{cita['fecha']} {cita['hora']}" if cita.get("hora") else f"{cita['fecha']} (todo el día)"
-    texto = f"📅 [{cita['id']}] {cita['texto']} · {cuando} · {subido}"
+    texto = f"📅 [{cita['id']}] {cita['texto']} · {_cuando(cita)} · {subido}"
     aviso = citas.aviso_choques(solapan)
     return f"{texto}\n{aviso}" if aviso else texto
 
@@ -64,8 +68,8 @@ async def comando_cita(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             if args[0] == "cancelar":
                 cita = citas.cancelar(id_cita, inq)
                 subido = await _subir(inq)
-                await responder(update, 
-                    f"🗑️ [{cita['id']}] {cita['texto']} · {cita['fecha']} · {subido}")
+                await responder(update,
+                    f"🗑️ [{cita['id']}] {cita['texto']} · {_cuando(cita)} · {subido}")
                 return
             if len(args) < 3:
                 await responder(update, f"❌ Falta el cuándo.\n\n{AYUDA}")

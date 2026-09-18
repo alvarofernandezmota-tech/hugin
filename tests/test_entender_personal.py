@@ -236,10 +236,38 @@ class TestProveedor(unittest.TestCase):
         with self.limpio(MIDGAROR_LLM="anthropic"):
             self.assertEqual(entender.proveedor(), "")
 
+    def test_groq_necesita_clave(self):
+        with self.limpio(MIDGAROR_LLM="groq", GROQ_API_KEY="gsk-algo"):
+            self.assertEqual(entender.proveedor(), "groq")
+
+    def test_elegir_groq_sin_clave_no_enciende_nada(self):
+        with self.limpio(MIDGAROR_LLM="groq"):
+            self.assertEqual(entender.proveedor(), "")
+
+    def test_google_necesita_clave(self):
+        with self.limpio(MIDGAROR_LLM="google", GOOGLE_API_KEY="AI-algo"):
+            self.assertEqual(entender.proveedor(), "google")
+
+    def test_gemini_es_sinonimo_de_google(self):
+        with self.limpio(MIDGAROR_LLM="gemini", GOOGLE_API_KEY="AI-algo"):
+            self.assertEqual(entender.proveedor(), "google")
+
+    def test_elegir_google_sin_clave_no_enciende_nada(self):
+        with self.limpio(MIDGAROR_LLM="google"):
+            self.assertEqual(entender.proveedor(), "")
+
     def test_el_modelo_local_por_defecto_es_el_de_hugin(self):
         with self.limpio(MIDGAROR_LLM="ollama"):
             self.assertEqual(entender.modelo(), entender.MODELO_LOCAL_POR_DEFECTO)
-            self.assertEqual(entender.MODELO_LOCAL_POR_DEFECTO, "qwen2.5:7b")
+            self.assertEqual(entender.MODELO_LOCAL_POR_DEFECTO, "qwen3:4b-instruct-2507")
+
+    def test_el_modelo_de_groq_por_defecto(self):
+        with self.limpio(MIDGAROR_LLM="groq", GROQ_API_KEY="gsk-algo"):
+            self.assertEqual(entender.modelo(), entender.MODELO_GROQ_POR_DEFECTO)
+
+    def test_el_modelo_de_google_por_defecto(self):
+        with self.limpio(MIDGAROR_LLM="google", GOOGLE_API_KEY="AI-algo"):
+            self.assertEqual(entender.modelo(), entender.MODELO_GOOGLE_POR_DEFECTO)
 
     def test_el_modelo_local_se_puede_forzar(self):
         with self.limpio(MIDGAROR_LLM="ollama", MIDGAROR_LLM_MODELO="gemma3:4b"):
@@ -281,6 +309,47 @@ class TestElEnrutadoDelMotor(unittest.TestCase):
              mock.patch.object(entender, "_preguntar_claude", explota_si_se_llama):
             entender.entender("qué tal el día")
         self.assertEqual(llamado.get("cual"), "ollama")
+
+    def _respuesta_diario(self):
+        return {"intencion": "diario", "texto": None, "nombre": None,
+                "hecho": True, "valor": None, "unidad": None,
+                "cuando": None, "confianza": "baja"}
+
+    def test_con_groq_elegido_se_llama_a_groq(self):
+        llamado = {}
+
+        def falso_groq(frase):
+            llamado["cual"] = "groq"
+            return self._respuesta_diario()
+
+        def explota(frase):
+            raise AssertionError("no debería haberse llamado a este motor")
+
+        with self.limpio(MIDGAROR_LLM="groq", GROQ_API_KEY="gsk-algo"), \
+             mock.patch.object(entender, "_preguntar_groq", falso_groq), \
+             mock.patch.object(entender, "_preguntar_claude", explota), \
+             mock.patch.object(entender, "_preguntar_ollama", explota), \
+             mock.patch.object(entender, "_preguntar_google", explota):
+            entender.entender("qué tal el día")
+        self.assertEqual(llamado.get("cual"), "groq")
+
+    def test_con_google_elegido_se_llama_a_google(self):
+        llamado = {}
+
+        def falso_google(frase):
+            llamado["cual"] = "google"
+            return self._respuesta_diario()
+
+        def explota(frase):
+            raise AssertionError("no debería haberse llamado a este motor")
+
+        with self.limpio(MIDGAROR_LLM="google", GOOGLE_API_KEY="AI-algo"), \
+             mock.patch.object(entender, "_preguntar_google", falso_google), \
+             mock.patch.object(entender, "_preguntar_claude", explota), \
+             mock.patch.object(entender, "_preguntar_ollama", explota), \
+             mock.patch.object(entender, "_preguntar_groq", explota):
+            entender.entender("qué tal el día")
+        self.assertEqual(llamado.get("cual"), "google")
 
 
 class TestElSaludoNoEsDiario(unittest.TestCase):

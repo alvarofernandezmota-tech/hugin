@@ -100,6 +100,41 @@ class TestLaHoraSeMarcaSiNoEstaAcotada(CasoFechas):
         self.assertEqual(self.leer("hueco el sábado por la mañana")[0], "2026-09-12")
         self.assertEqual(self.leer("hueco mañana")[0], "2026-09-12")
 
+    def test_una_franja_de_otro_momento_de_la_frase_no_se_cuela(self):
+        # Bug real, encontrado auditando: «_buscar_hora» cogía la PRIMERA
+        # franja de todo el texto, sin mirar si era la de la hora. Aquí
+        # «mañana» habla de que no hay hueco, no de las cinco: la franja de
+        # la hora es «tarde», pegada a ella. Antes esto daba 05:00 acotada.
+        _, hora, acotada, _ = self.leer(
+            "el jueves por la mañana no tengo hueco, ¿a las cinco de la tarde os viene bien?")
+        self.assertEqual(hora, "17:00")
+        self.assertTrue(acotada)
+
+    def test_la_franja_pegada_a_la_hora_manda_aunque_haya_otra_antes(self):
+        _, hora, acotada, _ = self.leer(
+            "por la mañana no puedo, mejor el lunes a las ocho de la noche")
+        self.assertEqual(hora, "20:00")
+        self.assertTrue(acotada)
+
+
+class TestFranjaEn(unittest.TestCase):
+    """`franja_en()` recuerda una franja dicha sin hora, para un turno después."""
+
+    def test_la_franja_dicha(self):
+        self.assertEqual(fechas.franja_en("por la tarde"), "tarde")
+
+    def test_sin_preposicion_no_cuenta(self):
+        # «Mañana» a secas es el día siguiente, no una franja.
+        self.assertIsNone(fechas.franja_en("mañana"))
+
+    def test_una_correccion_se_queda_con_la_ultima(self):
+        # Bug real: cogía «mañana» por ir primero en el diccionario FRANJAS,
+        # ignorando que el cliente se corrigió a «noche».
+        self.assertEqual(fechas.franja_en("no por la mañana, mejor por la noche"), "noche")
+
+    def test_sin_ninguna_franja_no_hay_nada(self):
+        self.assertIsNone(fechas.franja_en("a las cinco"))
+
 
 class TestLoQueNoSabeLoDice(CasoFechas):
     def test_sin_dia_devuelve_nada(self):

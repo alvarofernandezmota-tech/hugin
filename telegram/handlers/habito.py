@@ -38,6 +38,16 @@ AYUDA = (
 PINTA_DE_FECHA = re.compile(r"^\d{4}-\d{1,2}-\d{1,2}$|^\d{1,2}/\d{1,2}(/\d{2,4})?$")
 
 
+async def _subir(inq) -> str:
+    # sincronizar() hace git commit y git push si el inquilino guarda en
+    # fichero (con Postgres no hay nada que subir). Hasta 90 s con mala
+    # red: dentro de una corrutina eso congela el bot entero para todos
+    # los chats, no solo para quien mando el mensaje. to_thread lo saca
+    # del hilo del bucle de eventos, que sigue atendiendo lo demas.
+    return breve(await asyncio.to_thread(
+        sincronizar, inq.ruta / habitos.FICHERO, f"habitos: {inq.nombre}"))
+
+
 def _partir(args: list[str]) -> tuple[str, str | None, str | None]:
     """(nombre, valor, fecha) a partir de los argumentos de /habito.
 
@@ -85,13 +95,7 @@ async def comando_habito(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         inq = inquilino_actual()
         nombre, valor, fecha = _partir(args)
         fecha, nombre, marca = habitos.marcar(nombre, hecho=hecho, fecha=fecha, inq=inq, valor=valor)
-        # sincronizar() hace git commit y git push si el inquilino guarda en
-        # fichero. Hasta 90 s con mala red: dentro de una corrutina eso
-        # congela el bot entero para todos los chats, no solo para quien
-        # mando el mensaje. to_thread lo saca del hilo del bucle de
-        # eventos, que sigue atendiendo lo demas.
-        subido = breve(await asyncio.to_thread(
-            sincronizar, inq.ruta / habitos.FICHERO, f"habitos: {inq.nombre}"))
+        subido = await _subir(inq)
         await responder(update, f"{habitos.formato(marca)} {nombre} — {fecha} · {subido}")
     except ValueError as e:
         await responder(update, f"⚠️ {e}")

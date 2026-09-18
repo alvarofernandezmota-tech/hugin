@@ -48,8 +48,18 @@ class TestCita(CasoBot):
 
     def test_cancelar_la_retira_y_deja_de_estorbar(self):
         self._cita("médico", "el", "15", "de", "octubre", "a", "las", "10")
-        self.assertIn("🗑️", self._cita("cancelar", "1"))
+        r = self._cita("cancelar", "1")
+        self.assertIn("🗑️", r)
+        # Bug real: la confirmación de cancelar solo enseñaba la fecha, sin
+        # la hora, a diferencia de agregar/mover — aquí es donde se nota que
+        # de verdad se canceló la de las 10:00 y no otra del mismo día.
+        self.assertIn("2026-10-15 10:00", r)
         self.assertNotIn("Choca", self._cita("dentista", "el", "15", "de", "octubre", "a", "las", "10"))
+
+    def test_cancelar_una_cita_de_todo_el_dia_no_enseña_una_hora_falsa(self):
+        self._cita("reunión", "el", "15", "de", "octubre")
+        r = self._cita("cancelar", "1")
+        self.assertIn("2026-10-15 (todo el día)", r)
 
     def test_agenda_del_dia_y_de_la_semana(self):
         self._cita("médico", "el", "15", "de", "octubre", "a", "las", "10")

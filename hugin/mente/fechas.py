@@ -73,10 +73,9 @@ def _dia_de_la_semana(nombre: str, desde: date, que_viene: bool) -> date:
     """
     objetivo = DIAS.index(nombre)
     salto = (objetivo - desde.weekday()) % 7
-    if que_viene and salto == 0:
-        salto = 7
-    elif que_viene:
-        salto += 7 if salto < 7 else 0
+    if que_viene:
+        # salto ya está en [0, 6] por el modulo de arriba: siempre suma 7.
+        salto += 7
     return desde + timedelta(days=salto)
 
 
@@ -156,15 +155,29 @@ def _componer(crudo: str, exactos: str | None, signo: str | None, cuanto: str | 
     return dicha, bool(franja) or int(dicha[:2]) >= 12
 
 
+_HORA_CON_FRANJA = _PREFIJO_HORA + _HORA + \
+    r"(?:\s+(?:de\s+la\s+|por\s+la\s+|del\s+|al\s+)?(manana|tarde|noche|mediodia))?"
+
+
 def _buscar_hora(texto: str) -> tuple[str, bool, str] | None:
     """(hora, ¿está acotada?, trozo), o None.
 
     El segundo campo es el que importa: dice si «las cinco» las acotó el
     cliente o no. Sin él, alguien acaba citado a las 05:00.
+
+    La franja se busca primero PEGADA a la hora («a las cinco de la
+    tarde»): es la que de verdad corresponde a esa hora. Antes se buscaba
+    la primera franja que apareciera en CUALQUIER parte del texto, así que
+    «el jueves por la mañana no tengo hueco, ¿a las cinco de la tarde os
+    viene bien?» encontraba «mañana» —que no tiene nada que ver con las
+    cinco— y daba la cita por acotada a las 05:00, exactamente lo que la
+    franja pegada a la hora existe para evitar. Solo sin franja pegada se
+    mira el resto de la frase con `franja_en`, para el caso legítimo de
+    «por la tarde, a las cinco» (franja antes, no después).
     """
-    franja = next((f for f in FRANJAS if re.search(rf"\b{f}\b", texto)), None)
-    if (m := re.search(_PREFIJO_HORA + _HORA, texto)) is None:
+    if (m := re.search(_HORA_CON_FRANJA, texto)) is None:
         return None
+    franja = m.group(5) or franja_en(texto)
     if (compuesta := _componer(m.group(1), m.group(2), m.group(3), m.group(4), franja)) is None:
         return None
     return compuesta[0], compuesta[1], m.group(0)
@@ -209,12 +222,21 @@ def franja_en(frase: str) -> str | None:
     no la franja. Sirve para recordarla: quien dice «el jueves por la tarde»
     y luego «a las cinco» ya ha dicho que son las cinco de la tarde, y
     volver a preguntárselo es no haberle escuchado.
+
+    La ÚLTIMA franja mencionada, no la primera del diccionario `FRANJAS`:
+    «no por la mañana, mejor por la noche» tiene que devolver «noche», que
+    es la corrección, no «mañana» solo por aparecer antes en el orden en
+    que se declaró el diccionario.
     """
     texto = sin_tildes(frase or "")
-    for franja in FRANJAS:
-        if re.search(rf"\b(?:por|de|a|al|esta|este)\s+(?:la\s+|el\s+)?{franja}\b", texto):
-            return franja
-    return None
+    encontradas = [
+        (m.start(), franja)
+        for franja in FRANJAS
+        for m in re.finditer(rf"\b(?:por|de|a|al|esta|este)\s+(?:la\s+|el\s+)?{franja}\b", texto)
+    ]
+    if not encontradas:
+        return None
+    return max(encontradas)[1]
 
 
 # ---- decirlo, que es distinto de entenderlo -----------------------------
@@ -295,7 +317,10 @@ def duracion_en_palabras(texto: str | None) -> str | None:
     """
     if not texto:
         return None
-    t = sin_tildes(texto).replace(",", ".")
+    # Sin el .replace(",", ".") que había: ninguna de las dos expresiones de
+    # abajo entiende decimales (solo \d+), así que "1,5" no casaba ni antes
+    # ni después de la sustitución — no tenía ningún efecto.
+    t = sin_tildes(texto)
     if m := re.fullmatch(r"\s*(\d+)\s*h(?:oras?)?\s*(?:y\s*)?(\d+)?\s*(?:min\w*)?\s*", t):
         minutos = int(m.group(1)) * 60 + int(m.group(2) or 0)
     elif m := re.fullmatch(r"\s*(\d+)\s*(?:min\w*|m)\s*", t):

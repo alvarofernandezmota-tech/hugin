@@ -1,0 +1,84 @@
+# Unidad de systemd para el bot de Telegram (ADR-024: un cerebro, dos
+# puertas). Instalacion y comandos: ver README.md, seccion "Como servicio".
+#
+# Se llama hugin-telegram y no bifrost a proposito: bifrost.service es la
+# unidad VIEJA, de antes del corte de produccion del 2026-09-18. Se deja
+# instalada pero parada en Madre como vuelta atras instantanea una temporada;
+# esta es la que corre de verdad.
+#
+# Las rutas llevan el usuario y la ubicacion reales de Madre. Si el repo
+# vive en otro sitio, hay que cambiarlas antes de copiar la unidad.
+#
+# WorkingDirectory apunta a producto-bot/telegram: una copia propia del
+# repo hugin, solo para el bot y siempre en main (mismo motivo que antes
+# con midgaror-bot/ADR-013: un `git checkout` de quien trabaja no le puede
+# cambiar al servicio el codigo que carga al reiniciar).
+#
+# OJO — esto es la configuracion PREVISTA, con el endurecimiento completo.
+# Durante el corte del 2026-09-18 se quitaron a mano ProtectSystem,
+# ProtectHome, NoNewPrivileges, PrivateTmp y los Protect*/Restrict* de abajo
+# para depurar un fallo que resulto no tener nada que ver con ellos, y en
+# Madre TODAVIA no se han vuelto a poner. Antes de copiar este fichero tal
+# cual sobre la unidad instalada, comparar con `systemctl cat hugin-telegram`
+# y reponerlos con cuidado, no de golpe.
+
+[Unit]
+Description=hugin-telegram - bot de Telegram para el diario personal (ADR-024)
+Documentation=https://github.com/alvarofernandezmota-tech/hugin
+After=network-online.target
+Wants=network-online.target
+# Sin tope de reinicios. El fallo mas probable al arrancar no es un bot roto:
+# es que no haya red todavia (se reinicia Madre y la red tarda un minuto).
+# bot.py sin red muere en <1 s, asi que un tope se gasta en segundos y
+# systemd marca la unidad `failed` PARA SIEMPRE, aunque la red vuelva a los
+# dos minutos; hay que entrar a hacer `systemctl reset-failed` a mano. Con el
+# tope quitado, reintenta cada 10 s hasta que la red este. Un error de
+# configuracion de verdad (token invalido) lo corta bot.py saliendo, no el
+# tope. Heredado de bifrost.service, auditoria del 2026-09-08.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=varopc
+Group=varopc
+WorkingDirectory=/home/varopc/GitHub/personal/producto-bot/telegram
+ExecStart=/home/varopc/GitHub/personal/producto-bot/telegram/venv/bin/python bot.py
+
+# El token NO se pasa por systemd: lo lee python-dotenv del .env. Asi no
+# aparece en `systemctl show` ni en el volcado de la unidad. MIDGAROR_DATOS
+# e INQUILINOS si van aqui (ADR-025): los lee codigo distinto del cerebro
+# (hugin/inquilino.py) antes de que exista el inquilino.toml de cada uno, y
+# a diferencia del token no hay nada que ocultar en ellos.
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment="MIDGAROR_DATOS=/home/varopc/GitHub/personal/midgaror-diario"
+Environment="INQUILINOS=/home/varopc/GitHub/personal/midgaror-diario"
+
+# El bot tiene que volver siempre, salga como salga, salvo que alguien
+# haga systemctl stop. Con on-failure no volvia si lo mataban con SIGTERM,
+# porque python-telegram-bot lo captura y sale limpio con codigo 0, y eso
+# systemd no lo cuenta como fallo. Probado en Madre el 2026-09-04 (entonces
+# sobre bifrost.service): systemctl kill lo dejo inactive. El tope de
+# reinicios esta en [Unit].
+Restart=always
+RestartSec=10s
+
+# El bot escribe la prosa del diario y, para tareas/citas/habitos/apuntes,
+# hugin.guardado.sincronizar hace commit y push en el repo donde vivan de
+# verdad los datos del inquilino — midgaror-diario (ADR-025), NO el repo de
+# codigo. Por eso el permiso de escritura cubre midgaror-diario entero (ahi
+# tambien esta el .git/ del commit) y no producto-bot: el codigo se lee, los
+# datos se escriben, y son dos repos distintos desde ADR-025.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/varopc/GitHub/personal/midgaror-diario
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

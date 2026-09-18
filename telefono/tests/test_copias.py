@@ -26,6 +26,13 @@ from hugin.negocio import negocio as negocios  # noqa: E402
 
 HOY = date(2026, 9, 11)
 
+# Abierto todo el día, todos los días: a estas pruebas no les importa el
+# horario, solo que haya una cita de verdad que copiar. Desde que
+# Agenda.reservar() exige un horario escrito ("se reserva contra el
+# horario escrito o no se reserva"), un Agenda(..., None) ya no deja
+# reservar nada, ni siquiera para sembrar datos de prueba.
+_HORARIO_ABIERTO = _agenda.Horario.desde({dia: ["00:00-23:59"] for dia in _agenda.DIAS})
+
 
 class CasoCopias(unittest.TestCase):
     def setUp(self):
@@ -37,7 +44,8 @@ class CasoCopias(unittest.TestCase):
     def con_datos(self):
         avisos.registrar("llamada", "una llamada")
         memoria.apuntar_llamada("+34600111222", "Marta")
-        _agenda.Agenda("peluqueria", None).reservar("2030-01-01", "10:00", 30, "Tinte", "Marta")
+        _agenda.Agenda("peluqueria", _HORARIO_ABIERTO).reservar(
+            "2030-01-01", "10:00", 30, "Tinte", "Marta")
 
 
 class TestHacerLaCopia(CasoCopias):
@@ -90,6 +98,23 @@ class TestLimpiarLasViejas(CasoCopias):
         self.con_datos()
         copias.hacer(hoy=HOY)
         self.assertEqual(copias.limpiar(cuantas=14), [])
+
+    def test_una_carpeta_de_antes_de_restaurar_no_cuenta_como_copia(self):
+        # Bug real: "antes-de-restaurar-<fecha>" ordena SIEMPRE detrás de
+        # cualquier fecha real ("a" va después de los dígitos), así que
+        # listar() la tomaba por la más nueva y limpiar() nunca la borraba
+        # — y de paso desplazaba una copia diaria real fuera de la ventana.
+        self.con_datos()
+        for dia in range(1, 15):
+            copias.hacer(hoy=date(2026, 9, dia))
+        copias.restaurar("2026-09-01", hoy=date(2026, 9, 20))
+        self.assertNotIn("antes-de-restaurar-2026-09-20", copias.listar())
+        self.assertEqual(copias.listar()[-1], "2026-09-14")
+        borradas = copias.limpiar(cuantas=10)
+        self.assertNotIn("antes-de-restaurar-2026-09-20", borradas)
+        self.assertTrue(
+            (copias.carpeta() / "antes-de-restaurar-2026-09-20").is_dir(),
+            "limpiar() no debe tocar las carpetas de antes-de-restaurar")
 
 
 class TestRestaurar(CasoCopias):

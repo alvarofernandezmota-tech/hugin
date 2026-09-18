@@ -7,16 +7,23 @@ tarifas y toma la cita. Por voz, y en local.
 
 ## Decisiones
 
-### 1. Proyecto independiente, sin dependencias de ningún otro repo
+### 1. No depende de ningún repo AJENO — desde ADR-024, monorepo con hugin
 
-**Decisión**: repo propio, con sus propios `mente/fechas.py`, `guardado/almacen.py` y
-`telefono/voz.py`. No importa nada de fuera.
+**Decisión histórica (ya no vigente tal cual)**: hasta el ADR-024 esto era un
+repo propio de verdad, sin tocar nada de fuera: `mente/fechas.py`,
+`guardado/almacen.py` y `telefono/voz.py` eran ficheros locales, copiados a
+propósito.
 
-**Razón**: hubo unas horas en las que esto tiraba de otro repo y **se cortó a
-propósito**. Un recepcionista de peluquería no tiene por qué arrastrar el repo
-del diario personal de nadie para arrancar, y un fallo en un lado no puede
-dejar mudo el otro. Si alguna vez hace falta algo de fuera, **se copia**: son
-treinta líneas frente a una dependencia entre proyectos.
+**Estado real, comprobado en el código**: `canal/` y `dueno/` importan
+`hugin.mente`, `hugin.negocio` y `hugin.guardado` en todos sus ficheros.
+`telefono/` es una de las dos "puertas" del ADR-024 —la otra es
+`telegram/`—, y **usa `hugin` como librería**, en el mismo repo. La razón de
+fondo de la decisión original sigue siendo la buena y no ha cambiado: un
+recepcionista de peluquería no tiene por qué arrastrar el diario personal de
+nadie, y por eso `hugin/` en sí (no `telefono/`) sigue sin importar nada de
+canales ni de nada específico de un negocio — la regla vive ahora en
+`hugin/CLAUDE.md`, no en la separación de repos. Lo que cambió es la unidad
+de despliegue (un repo, no tres), no la regla de qué puede depender de qué.
 
 ### 2. `mente/fechas.py` mira hacia delante
 

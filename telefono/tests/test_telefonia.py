@@ -106,6 +106,24 @@ class TestLaLlamada(CasoCentralita):
         xml = self.decir("CA9", "qué horario tenéis")
         self.assertIn("Lunes cerrado", xml)
 
+    def test_un_turno_sin_entrada_previa_reconoce_a_un_cliente_conocido(self):
+        # Bug real: a diferencia de entrada(), este camino no llamaba a
+        # recordar() — un reinicio del servidor a mitad de llamada le hacia
+        # perder a un cliente ya conocido su nombre y lo que suele pedir.
+        numero = "+34600000009"
+        self.llamar("CA1", numero)
+        self.decir("CA1", "cita para un corte de caballero")
+        self.decir("CA1", "el jueves")
+        self.decir("CA1", "a las diez de la mañana")
+        self.decir("CA1", "me llamo Marta")
+        self.centralita.fin({"CallSid": "CA1"})
+
+        # CA2 nunca pasa por entrada(): el servidor "se reinicio" a mitad.
+        self.centralita.turno({"CallSid": "CA2", "From": numero,
+                               "SpeechResult": "qué horario tenéis"}, TURNO)
+        self.assertEqual(self.centralita._llamadas["CA2"].nombre, "Marta")
+        self.assertIn("CA2", self.centralita._conocidos)
+
     def test_lo_que_se_dice_va_escapado_en_el_xml(self):
         # Un «<» o un «&» en una frase de frases.toml romperia el XML entero y
         # el proveedor colgaria con un error de aplicacion.

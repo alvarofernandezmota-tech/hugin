@@ -19,7 +19,7 @@ $(PY):
 	$(PIP) install --upgrade pip >/dev/null
 	@# Editable, no solo ruff: sin esto `import hugin` depende de que cada
 	@# fichero se apane el sys.path, que es justo lo que el ADR-024 quita.
-	@$(PIP) install -e ".[dev,test]" >/dev/null 2>&1 || \
+	@$(PIP) install -e ".[dev,test,postgres]" >/dev/null 2>&1 || \
 	  $(PIP) install -e . >/dev/null 2>&1 || \
 	  echo "⚠️  no he podido instalar el paquete (¿sin red?). `make pruebas` va a fallar."
 

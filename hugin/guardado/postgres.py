@@ -32,21 +32,37 @@ from contextlib import contextmanager
 from datetime import date, datetime, time
 import os
 
-try:
-    import psycopg
-    from psycopg.rows import dict_row
-    # Explícito a propósito: `psycopg.types.json` se carga de rebote al
-    # registrar los adaptadores por defecto, pero depender de eso es depender
-    # de un detalle interno de psycopg que puede cambiar de versión.
-    from psycopg.types.json import Json
-except ImportError as error:  # pragma: no cover - depende del entorno
-    raise ImportError(
-        "los registros en Postgres necesitan psycopg, que no esta "
-        "instalado: pip install -e \".[postgres]\""
-    ) from error
-
 VARIABLE = "DIARIO_DATABASE_URL"
 FORMATO_FECHA = "%Y-%m-%d %H:%M"
+
+
+def _psycopg():
+    """psycopg, importado bajo demanda — no al cargar este módulo.
+
+    Antes `import psycopg` estaba a la cabeza del fichero, así que
+    `_en_postgres(inq)` de `tareas.py`/`citas.py`/`habitos.py`/`apuntes.py`
+    —que solo necesita leer `VARIABLE`, la constante de arriba, para saber
+    si hay que mirar Postgres— tumbaba la importación **entera** del módulo
+    en cualquier inquilino de fichero sin psycopg instalado. Medido en
+    Madre el 2026-09-18: el venv de `telegram/` no lleva el extra
+    `[postgres]` a propósito (un inquilino de fichero no lo necesita), y
+    `tareas.cargar()` de ese inquilino reventaba igual, sin haber tocado
+    Postgres para nada.
+    """
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+        # Explícito a propósito: `psycopg.types.json` se carga de rebote al
+        # registrar los adaptadores por defecto, pero depender de eso es
+        # depender de un detalle interno de psycopg que puede cambiar de
+        # versión.
+        from psycopg.types.json import Json
+    except ImportError as error:  # pragma: no cover - depende del entorno
+        raise ImportError(
+            "los registros en Postgres necesitan psycopg, que no esta "
+            "instalado: pip install -e \".[postgres]\""
+        ) from error
+    return psycopg, dict_row, Json
 
 TABLAS = (
     """
@@ -113,6 +129,7 @@ def url(inq=None) -> str:
 
 @contextmanager
 def conectar(inq=None):
+    psycopg, dict_row, _ = _psycopg()
     with psycopg.connect(url(inq), row_factory=dict_row) as conn:
         yield conn
 
@@ -252,6 +269,7 @@ def cargar_habitos(inq=None) -> dict:
 
 
 def guardar_habitos(datos: dict, inq=None) -> None:
+    _, _, Json = _psycopg()
     with conectar(inq) as conn:
         conn.execute("TRUNCATE habitos_registro")
         for fecha, registro in datos.items():

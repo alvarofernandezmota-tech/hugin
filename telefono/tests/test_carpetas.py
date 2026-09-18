@@ -129,20 +129,28 @@ class TestLosPuntosDeEntrada(unittest.TestCase):
                 self.assertIn("WorkingDirectory=",
                               unidad.read_text(encoding="utf-8"))
 
-    def test_la_actualizacion_sola_trae_el_submodulo_antes_de_reiniciar(self):
-        # El ADR-019 lo promete con estas palabras: "la unidad trae el
-        # submódulo antes de reiniciar, y si no puede, no reinicia". Sin
-        # esto, `git pull --ff-only` en el servicio de Madre mueve el
-        # puntero de `.gitmodules` pero no descarga hugin/, y el `make
-        # reiniciar` de detrás tira el proceso que SÍ tenía el cerebro
-        # cargado por uno que revienta con ImportError en el primer
-        # mensaje: el bot se queda mudo sin que nada lo diga.
+    def test_la_actualizacion_ya_no_trae_ningun_submodulo(self):
+        # Antes del ADR-024, el ADR-019 exigia traer el submodulo (hugin)
+        # antes de reiniciar: un `git pull --ff-only` que solo movia el
+        # puntero de `.gitmodules` dejaba hugin/ desactualizado y el
+        # `make reiniciar` de detras tiraba el proceso que SI tenia el
+        # cerebro cargado por uno que revienta con ImportError. Desde el
+        # ADR-024 no hay submodulo (ver test_el_cerebro_es_un_paquete_
+        # hermano_y_no_un_submodulo): el ExecStart ya no puede traer uno.
+        # Solo se mira el ExecStart, no el fichero entero: el comentario de
+        # arriba explica la historia y nombra ese comando a proposito.
         texto = (RAIZ / "gjallarhorn-actualizar.service.in").read_text(encoding="utf-8")
-        self.assertIn("git submodule update", texto)
-        # Y en el orden que importa: si el pull trae commits nuevos pero el
-        # submódulo no se puede traer, `reiniciar` no debe llegar a correr.
+        ejecuta = next(linea for linea in texto.splitlines() if linea.startswith("ExecStart="))
+        self.assertNotIn("submodule", ejecuta)
+
+    def test_reiniciar_solo_corre_si_el_pull_trajo_algo(self):
+        # La otra mitad de la garantia del ADR-019 sigue viva sin
+        # submodulo: un `git pull` que no cambia nada no tiene por que
+        # reiniciar el proceso.
+        texto = (RAIZ / "gjallarhorn-actualizar.service.in").read_text(encoding="utf-8")
+        self.assertIn('test "$antes" != "$(git rev-parse HEAD)" || exit 0', texto)
         antes_de_reiniciar = texto.split("make -s reiniciar")[0]
-        self.assertIn("git submodule update", antes_de_reiniciar)
+        self.assertIn("git pull", antes_de_reiniciar)
 
 
 if __name__ == "__main__":

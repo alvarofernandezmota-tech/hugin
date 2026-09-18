@@ -77,6 +77,22 @@ class Resultado:
         return "\n".join([self.titulo, *(f"  {linea}" for linea in self.lineas)])
 
 
+def _busca_ficha(nombre: str, fichas: list):
+    """La ficha de quien se llama así en `fichas`, si hay alguna.
+
+    Compartida con `dueno/panel.py::_telefono_de` — estaba duplicada,
+    literal, en los dos ficheros. Ver `Mundo.ficha_de` para el porqué de
+    buscar por nombre y no por teléfono.
+    """
+    buscado = fechas.sin_tildes(nombre or "").strip()
+    if not buscado:
+        return None
+    for ficha in fichas:
+        if fechas.sin_tildes(ficha.nombre or "") == buscado:
+            return ficha
+    return None
+
+
 @dataclass
 class Mundo:
     """Lo que ven los agentes. Se les da hecho para poder probarlos."""
@@ -102,13 +118,7 @@ class Mundo:
         una aproximación, y por eso solo se usa para **sugerir** a quién
         avisar, nunca para mandarle nada.
         """
-        buscado = fechas.sin_tildes(nombre or "").strip()
-        if not buscado:
-            return None
-        for ficha in self.fichas:
-            if fechas.sin_tildes(ficha.nombre or "") == buscado:
-                return ficha
-        return None
+        return _busca_ficha(nombre, self.fichas)
 
 
 # ---- los agentes ---------------------------------------------------------

@@ -17,6 +17,17 @@ from dobles import CasoBot  # noqa: E402  (instala el telegram falso)
 from handlers import recordatorios  # noqa: E402
 
 
+class TestTextoDelAviso(unittest.TestCase):
+    def test_sin_espacios_de_mas(self):
+        # Bug real: citas.linea() lleva dos espacios delante para cuando va
+        # bajo un titulo en una lista; aqui va sola y sumaba tres espacios
+        # antes de "📅" ("En un rato:   📅 ...").
+        texto = recordatorios.texto_del_aviso(
+            {"id": 1, "hora": "10:00", "texto": "médico"})
+        self.assertNotIn("   ", texto)
+        self.assertEqual(texto, "⏰ En un rato: 📅 [1] 10:00 · médico")
+
+
 class BotQueApunta:
     """Un `app.bot` que guarda a quién se le mandó qué."""
 

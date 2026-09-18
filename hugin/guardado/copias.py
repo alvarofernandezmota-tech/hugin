@@ -51,12 +51,28 @@ def carpeta(negocio: str | None = None) -> Path:
     return base / CARPETA
 
 
+def _es_fecha(nombre: str) -> bool:
+    try:
+        date.fromisoformat(nombre)
+        return True
+    except ValueError:
+        return False
+
+
 def listar(negocio: str | None = None) -> list[str]:
-    """Las fechas de las copias que hay, de la más vieja a la más nueva."""
+    """Las fechas de las copias que hay, de la más vieja a la más nueva.
+
+    Solo carpetas con forma de fecha: las "antes-de-restaurar-<fecha>" que
+    crea `restaurar()` viven en la misma carpeta, y ordenadas como texto
+    "antes-de-restaurar-…" sale SIEMPRE detrás de cualquier fecha (la "a"
+    va después de los dígitos) — sin este filtro, `limpiar()` las tomaba
+    por "las más nuevas", nunca las borraba, y podían desplazar a una
+    copia diaria real fuera de la ventana que se conserva.
+    """
     raiz = carpeta(negocio)
     if not raiz.is_dir():
         return []
-    return sorted(p.name for p in raiz.iterdir() if p.is_dir())
+    return sorted(p.name for p in raiz.iterdir() if p.is_dir() and _es_fecha(p.name))
 
 
 def hacer(negocio: str | None = None, hoy: date | None = None) -> tuple[Path, list[str]]:

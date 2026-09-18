@@ -38,6 +38,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from hugin.negocio import agenda as _agenda
+from dueno import agentes
 from dueno import aprender
 from hugin.guardado import avisos
 from hugin.guardado import datos as _datos
@@ -98,13 +99,8 @@ def _precio_de(servicio: str | None, base: Path | None) -> tuple[str, float]:
 
 def _telefono_de(nombre: str | None, fichas: list) -> str:
     """El teléfono de quien se llama así, si se le conoce. Ver la cabecera."""
-    buscado = fechas.sin_tildes(nombre or "").strip()
-    if not buscado:
-        return ""
-    for ficha in fichas:
-        if fechas.sin_tildes(ficha.nombre or "") == buscado:
-            return ficha.telefono
-    return ""
+    ficha = agentes._busca_ficha(nombre, fichas)
+    return ficha.telefono if ficha else ""
 
 
 def dia(negocio, agenda, fecha: date, hoy: date, fichas: list) -> Dia:

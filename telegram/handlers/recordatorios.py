@@ -37,7 +37,11 @@ CADA_SEGUNDOS = 60
 
 
 def texto_del_aviso(cita: dict) -> str:
-    return f"⏰ En un rato: {citas.linea(cita)}"
+    # citas.linea() lleva dos espacios delante a propósito: es para cuando
+    # se pone bajo un título, en una lista ("Citas del día:\n  📅 [1]...").
+    # Aquí va sola, sin título, y esos dos espacios sumados al ": " de
+    # delante dejaban un aviso con "En un rato:   📅" — tres espacios.
+    return f"⏰ En un rato: {citas.linea(cita).strip()}"
 
 
 async def avisar_una_vez(app: Application) -> int:

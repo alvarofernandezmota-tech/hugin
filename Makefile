@@ -34,6 +34,9 @@ instalar: $(PY)  ## venv + el paquete en editable + ruff
 pruebas: $(PY)  ## TODAS las pruebas y el lint: cerebro, telegram y telefono
 	@# Sigue hasta el final en vez de parar en el primer fallo: es mas util
 	@# ver los tres problemas de una vez que descubrirlos de uno en uno.
+	@# El interprete se llama por ruta ABSOLUTA: con `../$(PY)` desde dentro
+	@# de una puerta, Python avisa en cada ejecucion de que sys.prefix lleva
+	@# un ".." dentro, y ese ruido tapa los avisos que si importan.
 	@# Se usa el python del venv y no el del sistema: con el de fuera el
 	@# paquete no esta instalado y las pruebas dicen cosas que no son.
 	@# telegram todavia importa el diario de midgaror (fases 4 y 5 del
@@ -43,10 +46,10 @@ pruebas: $(PY)  ## TODAS las pruebas y el lint: cerebro, telegram y telefono
 	echo "── cerebro ──"; \
 	$(PY) -m unittest discover -s tests || fallos=$$((fallos+1)); \
 	echo "── telefono ──"; \
-	( cd telefono && ../$(PY) -m unittest discover -s tests ) || fallos=$$((fallos+1)); \
+	( cd telefono && $(CURDIR)/$(PY) -m unittest discover -s tests ) || fallos=$$((fallos+1)); \
 	echo "── telegram ──"; \
 	if [ -n "$$MIDGAROR_RAIZ" ]; then \
-	  ( cd telegram && ../$(PY) -m unittest discover -s tests ) || fallos=$$((fallos+1)); \
+	  ( cd telegram && $(CURDIR)/$(PY) -m unittest discover -s tests ) || fallos=$$((fallos+1)); \
 	else \
 	  echo "⚠️  SALTADA: falta MIDGAROR_RAIZ. Las pruebas de telegram NO se han corrido."; \
 	  echo "   export MIDGAROR_RAIZ=/ruta/a/midgaror"; \

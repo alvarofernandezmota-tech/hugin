@@ -6,14 +6,12 @@ escribe el dueño, no el cliente, así que ninguna conversación la ejercita y
 se quedó sin una sola prueba desde que se escribió.
 """
 
-import sys
 import unittest
 from pathlib import Path
 
-# El cerebro es el paquete `hugin/` dentro del repo, asi que lo que tiene
-# que estar en el sys.path es la raiz del repo (ADR-024).
+# Nada de sys.path: el paquete se instala en editable (`make instalar`),
+# asi que `import hugin` funciona sin trucos (ADR-024).
 RAIZ = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ))
 
 import entorno  # noqa: E402
 

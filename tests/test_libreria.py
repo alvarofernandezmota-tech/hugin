@@ -7,12 +7,11 @@ mete aqui un import de un canal porque «total, es una linea».
 
 import ast
 import os
-import sys
 import unittest
 from pathlib import Path
 
+# Nada de sys.path: el paquete se instala en editable (`make instalar`).
 RAIZ = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ))
 CEREBRO = RAIZ / "hugin"
 
 import entorno  # noqa: E402,F401

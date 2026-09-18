@@ -4,17 +4,15 @@ Todo sobre temporales, y una prueba dedicada a que los avisos caigan en la
 raíz de datos de gjallarhorn y en ningún otro sitio.
 """
 
-import sys
 import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-# El cerebro es el paquete `hugin/` dentro del repo, asi que lo que tiene
-# que estar en el sys.path es la raiz del repo (ADR-024).
+# Nada de sys.path: el paquete se instala en editable (`make instalar`),
+# asi que `import hugin` funciona sin trucos (ADR-024).
 RAIZ = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ))
 
 import entorno  # noqa: E402,F401 — desvía los datos antes de cualquier import
 

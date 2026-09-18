@@ -1,0 +1,48 @@
+# El producto: un cerebro y dos puertas (ADR-024).
+#
+# Hasta ahora nada de esto se instalaba: cada modulo se buscaba la vida con
+# `sys.path.insert(0, ...)` en su cabecera, repetido en mas de treinta
+# ficheros. Eso funciona al correr las pruebas desde la raiz y se cae en
+# cuanto el codigo se usa desde cualquier otro sitio.
+#
+# Lo que se empaqueta es el CEREBRO (`hugin`), que es la libreria. Las dos
+# puertas —`telegram/` y `telefono/`— son aplicaciones: se arrancan desde su
+# carpeta y no se importan desde fuera, asi que no son paquetes instalables.
+#
+#     python3 -m venv .venv
+#     .venv/bin/pip install -e ".[dev]"
+#
+# Con eso, `import hugin` funciona desde donde sea y sin tocar el sys.path.
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hugin"
+version = "0.1.0"
+description = "El cerebro de un bot que atiende a gente, sin saber por donde le hablan"
+# Lo que de verdad se ha probado: las tres suites pasan en 3.11, y Madre corre
+# 3.14. El `target-version = "py312"` de ruff es una eleccion de lint, no un
+# minimo del codigo.
+requires-python = ">=3.11"
+# El cerebro es biblioteca estandar a proposito: lo unico opcional es el LLM.
+dependencies = []
+
+[project.optional-dependencies]
+# El LLM. Sin esto el cerebro funciona igual: `mente/cerebro.py` importa
+# dentro de la funcion y sin la libreria se contesta con las reglas.
+llm = ["anthropic==1.6.0"]
+dev = ["ruff==0.15.8"]
+# Lo justo para poder CORRER las tres suites. `telegram/bot.py` importa
+# python-telegram-bot y python-dotenv al cargar el modulo, asi que sin ellas
+# sus pruebas ni se cargan. Las pesadas de verdad (faster-whisper, piper) se
+# importan dentro de la funcion que las usa y no hacen falta aqui: estan en
+# el requirements.txt de cada puerta, que es lo que se instala para
+# arrancarlas.
+#
+# El cerebro y `telefono/` pasan sus pruebas con biblioteca estandar a secas.
+test = ["python-telegram-bot==22.8", "python-dotenv==1.2.3"]
+
+[tool.setuptools]
+packages = ["hugin", "hugin.mente", "hugin.negocio", "hugin.guardado"]

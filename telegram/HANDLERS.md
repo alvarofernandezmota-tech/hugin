@@ -132,7 +132,7 @@ es lo que pasó el 2026-09-05 treinta veces seguidas.
 Antes de ir al diario, se le pregunta a `entender()` si en realidad es una
 tarea, un hábito, una cita o un apunte. Con alta confianza, va a la misma
 función que su comando —`tareas.agregar`, `agenda.agregar`, `habitos.marcar`,
-`registro.apuntar`— y contesta con la misma confirmación que daría ese
+`hugin.apuntes.apuntar`— y contesta con la misma confirmación que daría ese
 comando. Con cualquier duda, sin `ANTHROPIC_API_KEY` puesta, o si la propia
 frase es un diario de verdad, cae aquí abajo exactamente como siempre: esto
 no puede hacer que un mensaje se pierda, en el peor caso dejar de reconocer
@@ -282,9 +282,13 @@ sale barato: el hábito raro se ve en `/habitos` del mismo día.
 
 ## `/apunte`, `/dia` y `/semana`
 
-**Módulo**: `handlers/apunte.py` → `midgaror/diario/registro/registro.py`
+**Módulo**: `handlers/apunte.py` → `hugin.apuntes` (el cerebro, `hugin/apuntes.py`)
 
-El modelo del [ADR-012](https://github.com/alvarofernandezmota-tech/midgaror/blob/main/docs/adr/012-modelo-de-registro-diario.md).
+Primer comando movido del canal al cerebro, comando por comando
+([ADR-024](https://github.com/alvarofernandezmota-tech/midgaror/blob/main/docs/adr/024-un-cerebro-dos-puertas.md),
+fase 5). El modelo viene del [ADR-012](https://github.com/alvarofernandezmota-tech/midgaror/blob/main/docs/adr/012-modelo-de-registro-diario.md),
+portado entero. La fecha la sigue resolviendo el parser de midgaror, sin
+cambiar: solo cambió dónde se guarda.
 Un **apunte** es un evento, no una casilla: `tele 3h`, `deporte`, `agua 1,5l`.
 
 | Mensaje | Qué hace |
@@ -325,7 +329,7 @@ calendario, que es la que uno tiene en la cabeza al mirarlo un miércoles.
 
 Lo que **no** hay todavía: fijar objetivos desde Telegram. `fijar_objetivo()`
 existe en el módulo pero no tiene comando, así que hoy los objetivos se ponen
-a mano en `diario/registro/datos/objetivos.json`.
+a mano en el fichero de objetivos del inquilino (`objetivos.json`, junto a `apuntes.json`).
 
 ---
 

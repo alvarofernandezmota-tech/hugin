@@ -11,12 +11,11 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from hugin.personal import citas, habitos, tareas
+from hugin.personal import citas, fechas, habitos, tareas
 from utils.inquilino import actual as inquilino_actual
 from utils.midgaror import modulo
 from utils.respuestas import responder, responder_si_puedo
 
-fechas = modulo("fechas")
 leer_entrada = modulo("bifrost_bridge").leer_entrada
 
 logger = logging.getLogger(__name__)

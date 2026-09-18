@@ -7,9 +7,9 @@ personales que no saca la fecha del propio texto, así que no depende de
 cómo se reconcilien los dos parsers (ver `hugin/apuntes.py`, "Por que este
 modulo se puede mudar y los otros tres todavia no").
 
-La fecha la sigue resolviendo `fechas` (el parser de midgaror, vía
-`utils.midgaror`) exactamente igual que antes: ESO no cambia aquí, y es a
-propósito. Lo único que cambia es dónde se guarda.
+La fecha la resuelve `hugin.personal.fechas` exactamente igual que antes
+—es la misma copia byte a byte del parser de midgaror—: ESO no cambia
+aquí, y es a propósito. Lo único que cambia es dónde se guarda.
 
 Un **apunte** es un evento, no una casilla: `tele 3h`, `deporte`, `agua 1,5l`.
 Varios del mismo día se suman al leer, y la dirección la pone el objetivo
@@ -28,11 +28,9 @@ from telegram.ext import ContextTypes
 
 from hugin import apuntes as registro
 from hugin.guardado.sincronizar import sincronizar
+from hugin.personal import fechas
 from utils.inquilino import actual as inquilino_actual
-from utils.midgaror import modulo
 from utils.respuestas import breve, responder, responder_si_puedo
-
-fechas = modulo("fechas")
 
 logger = logging.getLogger(__name__)
 

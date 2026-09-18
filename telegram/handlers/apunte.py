@@ -1,13 +1,22 @@
 """Handlers de /apunte, /dia y /semana.
 
-Interfaz de midgaror/diario/registro/registro.py, el modelo del ADR-012.
+Interfaz de `hugin.apuntes`, portado de midgaror/diario/registro/registro.py
+(ADR-012) al cerebro en la fase 4 del ADR-024. Es el primer comando que pasa
+al cerebro en la fase 5: `apuntes` es el único de los cuatro modelos
+personales que no saca la fecha del propio texto, así que no depende de
+cómo se reconcilien los dos parsers (ver `hugin/apuntes.py`, "Por que este
+modulo se puede mudar y los otros tres todavia no").
+
+La fecha la sigue resolviendo `fechas` (el parser de midgaror, vía
+`utils.midgaror`) exactamente igual que antes: ESO no cambia aquí, y es a
+propósito. Lo único que cambia es dónde se guarda.
 
 Un **apunte** es un evento, no una casilla: `tele 3h`, `deporte`, `agua 1,5l`.
 Varios del mismo día se suman al leer, y la dirección la pone el objetivo
 (`al_menos` / `como_mucho`), no una etiqueta de bueno o malo.
 
 Los totales no se guardan: `/dia` y `/semana` los calculan al mostrar
-(apartado 6 del ADR). Este módulo solo pinta lo que devuelve `registro`.
+(apartado 6 del ADR-012). Este módulo solo pinta lo que devuelve `hugin.apuntes`.
 """
 
 import asyncio
@@ -17,12 +26,13 @@ import re
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from hugin import apuntes as registro
+from hugin.guardado.sincronizar import sincronizar
+from utils.inquilino import actual as inquilino_actual
 from utils.midgaror import modulo
 from utils.respuestas import breve, responder, responder_si_puedo
 
 fechas = modulo("fechas")
-registro = modulo("registro")
-sincronizar = modulo("sincronizar").sincronizar
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +119,7 @@ def cuanto(apunte: dict) -> str:
 
 
 def pintar(resumen: dict, cabecera: str) -> str:
-    """El resumen, en texto para el chat. Aquí se pinta; registro.py no imprime.
+    """El resumen, en texto para el chat. Aquí se pinta; hugin.apuntes no imprime nada, solo devuelve datos.
 
     El icono sale del objetivo, no del nombre: un `al_menos` sin cumplir es
     «te falta» (⏳), no «mal» — que es justo lo que dice el ADR-012 cuando
@@ -140,14 +150,17 @@ async def comando_apunte(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await responder(update, AYUDA)
         return
     try:
+        inq = inquilino_actual()
         que, valor, unidad, fecha = _partir(args)
-        apunte = registro.apuntar(que, valor=valor, unidad=unidad, fecha=fecha)
-        # sincronizar() hace git commit y git push: hasta 90 s con mala red.
-        # Dentro de una corrutina eso congela el bot entero para todos los
-        # chats, no solo para quien mando el mensaje. to_thread lo saca del
-        # hilo del bucle de eventos, que sigue atendiendo lo demas.
+        apunte = registro.apuntar(que, valor=valor, unidad=unidad, fecha=fecha, inq=inq)
+        # sincronizar() hace git commit y git push si el inquilino guarda en
+        # fichero (con Postgres no hay nada que subir, y lo dice sin fallar).
+        # Hasta 90 s con mala red: dentro de una corrutina eso congela el bot
+        # entero para todos los chats, no solo para quien mando el mensaje.
+        # to_thread lo saca del hilo del bucle de eventos, que sigue
+        # atendiendo lo demas.
         subido = breve(await asyncio.to_thread(
-            sincronizar, registro.RUTA_DATOS, "diario: apuntes desde bifrost"))
+            sincronizar, inq.ruta / registro.FICHERO, f"apuntes: {inq.nombre}"))
         await responder(update, f"📝 {apunte['que']}{cuanto(apunte)} — {apunte['fecha']} · {subido}")
     except ValueError as e:
         await responder(update, f"⚠️ {e}")
@@ -163,7 +176,7 @@ async def comando_dia(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         # mira lo que ya ha pasado.
         dicho = " ".join(context.args or [])
         fecha = fechas.normalizar(dicho, hacia_atras=True) if dicho else None
-        resumen = registro.resumen_dia(fecha)
+        resumen = registro.resumen_dia(fecha, inq=inquilino_actual())
         await responder(update, pintar(resumen, f"📊 Apuntes del {resumen['fecha']}"))
     except ValueError as e:
         await responder(update, f"⚠️ {e}")
@@ -177,7 +190,7 @@ async def comando_semana(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     try:
         dicho = " ".join(context.args or [])
         fecha = fechas.normalizar(dicho, hacia_atras=True) if dicho else None
-        resumen = registro.resumen_semana(fecha)
+        resumen = registro.resumen_semana(fecha, inq=inquilino_actual())
         cabecera = f"📆 Semana del {resumen['desde']} al {resumen['hasta']}"
         await responder(update, pintar(resumen, cabecera))
     except ValueError as e:

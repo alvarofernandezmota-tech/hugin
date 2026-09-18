@@ -18,7 +18,7 @@ import entorno  # noqa: E402,F401
 
 from hugin.guardado import ajustes  # noqa: E402
 
-PAQUETES = ("mente", "negocio", "guardado")
+PAQUETES = ("mente", "negocio", "guardado", "personal")
 
 # Un canal es por donde entra la conversacion. El cerebro no sabe cual es, y
 # esa es toda la razon de que sea un paquete aparte.

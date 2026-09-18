@@ -32,6 +32,9 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from handlers.apunte import cuanto
+from hugin import apuntes as registro
+from hugin.personal import fechas as fechas_personal
+from utils.inquilino import actual as inquilino_actual
 from utils.midgaror import modulo
 from utils.respuestas import breve, dia, responder, responder_si_puedo
 
@@ -41,7 +44,6 @@ entender = modulo("entender")
 fechas = modulo("fechas")
 habitos = modulo("habitos")
 organizar_texto = modulo("organizar_diario").organizar_texto
-registro = modulo("registro")
 sincronizar = modulo("sincronizar").sincronizar
 tareas = modulo("tareas")
 
@@ -127,8 +129,17 @@ async def _enrutar(update: Update, e) -> None:
     elif e.intencion == "apunte":
         if not e.nombre:
             raise ValueError("apunte sin nombre")
-        apunte = registro.apuntar(e.nombre, valor=e.valor, unidad=e.unidad, fecha=e.cuando)
-        subido = await _subir(registro.RUTA_DATOS, "diario: apuntes desde bifrost")
+        inq = inquilino_actual()
+        # `e.cuando` viene en español tal cual lo dijo quien escribe
+        # (entender.py:119: "'ayer', 'el lunes'... tal cual"), y
+        # `apuntar()` espera AAAA-MM-DD (hugin/apuntes.py:82). Sin
+        # resolverlo aquí, normalizar_fecha('ayer') lanza ValueError y el
+        # apunte se pierde silenciosamente como prosa del diario, que es
+        # justo lo que apunte.py:71 ya evita para el comando /apunte.
+        # Hacia ATRÁS: un apunte habla de algo que ya pasó.
+        fecha = fechas_personal.normalizar(e.cuando, hacia_atras=True) if e.cuando else None
+        apunte = registro.apuntar(e.nombre, valor=e.valor, unidad=e.unidad, fecha=fecha, inq=inq)
+        subido = await _subir(inq.ruta / registro.FICHERO, f"apuntes: {inq.nombre}")
         await responder(update, f"📝 {apunte['que']}{cuanto(apunte)} — {apunte['fecha']} · {subido}")
     else:
         # entender() nunca debería devolver otra cosa (solo alta confianza y

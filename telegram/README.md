@@ -28,7 +28,7 @@ bifrost/
 │ ├─ cita.py # /cita, /agenda → diario/agenda/agenda.py
 │ ├─ habito.py # /habito, /habitos → diario/habitos/habitos.py
 │ ├─ hoy.py # /hoy → leer_entrada + citas + tareas + hábitos
-│ ├─ apunte.py # /apunte, /dia, /semana → diario/registro/registro.py
+│ ├─ apunte.py # /apunte, /dia, /semana → hugin.apuntes (cerebro, ADR-024 fase 5)
 │ ├─ menu.py # /menu → botones que preguntan y enrutan al handler del comando
 │ ├─ texto.py # mensaje sin comando → entender() y, si no, diario de hoy
 │ ├─ voz.py # nota de voz → Whisper → el mismo camino que el texto
@@ -105,6 +105,12 @@ cd proyectos/bifrost
 
    Rellena `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`. El `.env` no se
    commitea nunca: ya está en `.gitignore`.
+
+   Y, desde que `/apunte` vive en el cerebro (ADR-024, fase 5), hace falta
+   decir para quién es esta copia: `INQUILINO=alvaro`, el nombre de su
+   carpeta dentro de `INQUILINOS` (ver `hugin/telegram/utils/inquilino.py`).
+   Sin ella, `/apunte`, `/dia` y `/semana` fallan con un aviso claro; el
+   resto de comandos —todavía en `diario/`— no la necesitan.
 
 5. **Probar la escritura sin el bot**, para separar los fallos del diario de
    los de Telegram:
@@ -377,7 +383,7 @@ ayuda anterior los llevaba y se escribieron tal cual dos veces en el diario.
 | `/habito deporte ayer` · `/habito deporte 2026-09-03` | En otro día, dicho en español o con la fecha | idem |
 | `/habito Beber agua 3 2026-09-03` | Nombre compuesto, valor y fecha | idem |
 | `/habitos` · `/habitos semana` | El día, o la semana con totales y medias | idem |
-| `/apunte deporte` · `/apunte tele 3h` · `/apunte agua 1,5l` | Apunta un evento del día, sin cantidad, con cantidad y unidad pegadas, o separadas | `diario/registro/registro.py` |
+| `/apunte deporte` · `/apunte tele 3h` · `/apunte agua 1,5l` | Apunta un evento del día, sin cantidad, con cantidad y unidad pegadas, o separadas | `hugin.apuntes` |
 | `/apunte tele 1h ayer` | En otro día, dicho en español | idem |
 | `/dia` · `/dia ayer` | Lo apuntado ese día, contra sus objetivos | idem |
 | `/semana` · `/semana el lunes` | La semana natural de ese día, de lunes a domingo | idem |

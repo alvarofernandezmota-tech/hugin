@@ -38,10 +38,13 @@ def paquetes() -> dict:
 class TestLoQueSeDeclara(unittest.TestCase):
     def test_todo_va_con_version_fijada(self):
         # El fichero lo dice en su cabecera: sin fijar, un pip install en el
-        # momento equivocado deja el bot sin arrancar.
+        # momento equivocado deja el bot sin arrancar. `-e ..` es la única
+        # excepción real: es el propio cerebro (hugin), en el mismo repo y al
+        # mismo commit — no hay una "versión" que fijar aparte de esa.
         sueltos = [ln.strip() for ln in
                    (RAIZ / "requirements.txt").read_text(encoding="utf-8").splitlines()
-                   if ln.strip() and not ln.strip().startswith("#") and "==" not in ln]
+                   if ln.strip() and not ln.strip().startswith("#") and "==" not in ln
+                   and ln.strip() != "-e .."]
         self.assertEqual(sueltos, [])
 
     def test_estan_las_que_importa_el_bot(self):

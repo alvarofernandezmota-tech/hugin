@@ -14,6 +14,13 @@
 # Solo van las que importamos nosotros. Lo demas (httpx, anyio, certifi,
 # h11, httpcore, idna) lo arrastra python-telegram-bot y lo resuelve pip.
 
+# El cerebro (ADR-024, fases 4 y 5): tarea.py, cita.py, habito.py, apunte.py,
+# hoy.py y recordatorios.py importan `hugin.personal` y `hugin.guardado`
+# directamente, no por sys.path. `..` es la raiz del repo (este venv vive
+# dentro de telegram/): editable, para que un `git pull` no necesite
+# reinstalar nada.
+-e ..
+
 python-telegram-bot==22.8
 python-dotenv==1.2.3
 

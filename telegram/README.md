@@ -17,17 +17,18 @@ teoría: arrancar una segunda instancia a mano **rompe la que está corriendo**
 
 ## Estructura del repositorio
 
-bifrost/
+```text
+telegram/
 ├─ bot.py # Punto de entrada del bot
 ├─ handlers/
 │ ├─ _init_.py
 │ ├─ diario.py # /diario → organizar_texto()
 │ ├─ entrada.py # /entrada → escribir_entrada()
 │ ├─ secciones.py # /siento, /aprendo, /plan → secciones del diario
-│ ├─ tarea.py # /tarea, /tareas → diario/tareas/tareas.py
-│ ├─ cita.py # /cita, /agenda → diario/agenda/agenda.py
-│ ├─ habito.py # /habito, /habitos → diario/habitos/habitos.py
-│ ├─ hoy.py # /hoy → leer_entrada + citas + tareas + hábitos
+│ ├─ tarea.py # /tarea, /tareas → hugin.personal.tareas (cerebro, ADR-024 fase 5)
+│ ├─ cita.py # /cita, /agenda → hugin.personal.citas (cerebro, ADR-024 fase 5)
+│ ├─ habito.py # /habito, /habitos → hugin.personal.habitos (cerebro, ADR-024 fase 5)
+│ ├─ hoy.py # /hoy → diario (midgaror) + citas, tareas y hábitos (cerebro)
 │ ├─ apunte.py # /apunte, /dia, /semana → hugin.apuntes (cerebro, ADR-024 fase 5)
 │ ├─ menu.py # /menu → botones que preguntan y enrutan al handler del comando
 │ ├─ texto.py # mensaje sin comando → entender() y, si no, diario de hoy
@@ -49,25 +50,32 @@ bifrost/
 ├─ README.md
 ├─ SCRIPTS.md
 └─ docs/
-└─ sesiones/
-
-text
+   └─ sesiones/
+```
 
 ## Dónde tiene que vivir este repo
 
-**Importante:** bifrost no funciona clonado por su cuenta.
-[`utils/midgaror.py`](utils/midgaror.py) busca el diario cuatro niveles por
-encima de `utils/`, así que el repo tiene que estar en
-`midgaror/proyectos/bifrost`, que es donde lo pone el submódulo. Clonado en
-otro sitio, los imports de `midgaror/diario/` fallan al arrancar. Ese fichero
-es el único que lo sabe: si algún día bifrost se instala como paquete, es el
-único que hay que tocar.
+Dos cosas de fuera hacen falta, y ya no es un submódulo ni una ruta fija.
+
+**El cerebro (`hugin`)** lo trae este mismo repo: `telegram/` es la carpeta
+`telegram/` de `hugin`, así que `pip install -r requirements.txt` ya instala
+`hugin` en editable (ver [`requirements.txt`](requirements.txt)) y
+`from hugin.personal import citas` funciona sin tocar el `sys.path`.
+
+**El diario en prosa** —lo que todavía escriben `/diario`, `/entrada`,
+`/siento`/`/aprendo`/`/plan` y lo que no se entiende como tarea, cita, hábito
+o apunte— sigue siendo de midgaror, y [`utils/midgaror.py`](utils/midgaror.py)
+lo busca donde diga la variable `MIDGAROR_RAIZ`:
 
 ```bash
-cd ~/GitHub/personal/midgaror     # o donde tengas midgaror
-git submodule update --init --recursive
-cd proyectos/bifrost
+export MIDGAROR_RAIZ=~/GitHub/personal/midgaror-bot   # o donde tengas el diario
 ```
+
+**Ponla siempre.** El "por defecto" sin la variable es una cuenta de cuatro
+`.parent` heredada de cuando este fichero vivía dentro de bifrost —desde que
+vive en `hugin/telegram/utils/` ya no aterriza en ningún midgaror real—, así
+que sin `MIDGAROR_RAIZ` el bot no arranca. No falla en silencio: lo dice con
+el mensaje exacto de qué variable poner.
 
 ## Puesta en marcha, paso a paso
 
@@ -106,11 +114,14 @@ cd proyectos/bifrost
    Rellena `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`. El `.env` no se
    commitea nunca: ya está en `.gitignore`.
 
-   Y, desde que `/apunte` vive en el cerebro (ADR-024, fase 5), hace falta
-   decir para quién es esta copia: `INQUILINO=alvaro`, el nombre de su
-   carpeta dentro de `INQUILINOS` (ver `hugin/telegram/utils/inquilino.py`).
-   Sin ella, `/apunte`, `/dia` y `/semana` fallan con un aviso claro; el
-   resto de comandos —todavía en `diario/`— no la necesitan.
+   Y, desde que los comandos personales viven en el cerebro (ADR-024, fase
+   5), hace falta decir para quién es esta copia: `INQUILINO=alvaro`, el
+   nombre de su carpeta dentro de `INQUILINOS` (ver
+   `hugin/telegram/utils/inquilino.py`). Sin ella, `/apunte`, `/dia`,
+   `/semana`, `/tarea`, `/tareas`, `/cita`, `/agenda`, `/habito`, `/habitos`,
+   `/hoy` y los recordatorios fallan con un aviso claro; solo `/diario`,
+   `/entrada`, `/siento`/`/aprendo`/`/plan` —el diario en prosa, todavía de
+   midgaror— no la necesitan.
 
 5. **Probar la escritura sin el bot**, para separar los fallos del diario de
    los de Telegram:
@@ -368,16 +379,16 @@ ayuda anterior los llevaba y se escribieron tal cual dos veces en el diario.
 | `/siento contento, he dormido bien` | A **«Cómo me siento»**, con la hora | `diario/organizar_diario.py` |
 | `/aprendo lo de filters.COMMAND` | A **«Avances / aprendizajes»**, como viñeta | idem |
 | `/plan seguir con el portfolio` | A **«Para mañana»**, como viñeta | idem |
-| `/tarea comprar el pan` | Apunta una tarea | `diario/tareas/tareas.py` |
+| `/tarea comprar el pan` | Apunta una tarea | `hugin.personal.tareas` |
 | `/tarea médico mañana a las 10` | Con fecha: la saca del texto | idem + `diario/fechas.py` |
 | `/tarea empezar 3` · `/tarea hecha 3` · `/tarea reabrir 3` | La mueve de estado | idem |
 | `/tarea editar 3 …` · `/tarea aplazar 3 …` | Le cambia el texto o la fecha | idem |
 | `/tarea borrar 3` | La retira | idem |
 | `/tareas` | En proceso, pendientes por fecha y últimas hechas | idem |
-| `/cita médico mañana a las 10` | Apunta una cita; avisa si choca con otra | `diario/agenda/agenda.py` |
+| `/cita médico mañana a las 10` | Apunta una cita; avisa si choca con otra | `hugin.personal.citas` |
 | `/cita mover 3 …` · `/cita cancelar 3` | La cambia de hora o la retira | idem |
 | `/agenda` · `/agenda semana` | Las citas del día o de los siete días | idem |
-| `/habito deporte` · `/habito no meditar` | Apunta un hábito de hoy | `diario/habitos/habitos.py` |
+| `/habito deporte` · `/habito no meditar` | Apunta un hábito de hoy | `hugin.personal.habitos` |
 | `/habito Leer Libro` | El nombre puede llevar espacios | idem |
 | `/habito energia 7` | Un valor del 1 al 10 | idem |
 | `/habito deporte ayer` · `/habito deporte 2026-09-03` | En otro día, dicho en español o con la fecha | idem |

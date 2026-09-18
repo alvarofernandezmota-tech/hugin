@@ -28,31 +28,31 @@ class TestCasosDeLaAuditoria(unittest.TestCase):
 
     def test_manana_a_las_10(self):
         self.assertEqual(fechas.interpretar("quedada mañana a las 10", AHORA),
-                         ("2026-09-05", "10:00", "quedada"))
+                         ("2026-09-05", "10:00", False, "quedada"))
 
     def test_pasado_manana_son_dos_dias_no_uno(self):
         # thea-ia devolvía 2026-09-05, que es «mañana».
         self.assertEqual(fechas.interpretar("médico pasado mañana", AHORA),
-                         ("2026-09-06", None, "médico"))
+                         ("2026-09-06", None, False, "médico"))
 
     def test_el_15_de_octubre_respeta_el_mes(self):
         # thea-ia se comía el mes y devolvía 2026-09-15.
         self.assertEqual(fechas.interpretar("cita el 15 de octubre a las 9:30", AHORA),
-                         ("2026-10-15", "09:30", "cita"))
+                         ("2026-10-15", "09:30", False, "cita"))
 
     def test_el_proximo_lunes_por_la_tarde(self):
         # thea-ia acertaba el día pero ignoraba «por la tarde» y ponía 09:00.
         self.assertEqual(fechas.interpretar("reunión el próximo lunes por la tarde", AHORA),
-                         ("2026-09-07", "16:00", "reunión"))
+                         ("2026-09-07", "16:00", True, "reunión"))
 
     def test_en_3_dias_no_deja_la_expresion_en_el_resto(self):
         # thea-ia acertaba la fecha pero metía «3 días» como ubicación.
         self.assertEqual(fechas.interpretar("gimnasio en 3 días", AHORA),
-                         ("2026-09-07", None, "gimnasio"))
+                         ("2026-09-07", None, False, "gimnasio"))
 
     def test_hoy_a_las_3_de_la_tarde(self):
         self.assertEqual(fechas.interpretar("llamar a Ana hoy a las 3 de la tarde", AHORA),
-                         ("2026-09-04", "15:00", "llamar a Ana"))
+                         ("2026-09-04", "15:00", True, "llamar a Ana"))
 
     def test_sin_fecha_no_se_inventa_ninguna(self):
         self.assertIsNone(fechas.interpretar("comprar el pan", AHORA))
@@ -60,13 +60,13 @@ class TestCasosDeLaAuditoria(unittest.TestCase):
 
 class TestRelativas(unittest.TestCase):
     def test_ayer(self):
-        self.assertEqual(fechas.interpretar("ayer", AHORA), ("2026-09-03", None, ""))
+        self.assertEqual(fechas.interpretar("ayer", AHORA), ("2026-09-03", None, False, ""))
 
     def test_hoy(self):
-        self.assertEqual(fechas.interpretar("hoy", AHORA), ("2026-09-04", None, ""))
+        self.assertEqual(fechas.interpretar("hoy", AHORA), ("2026-09-04", None, False, ""))
 
     def test_manana(self):
-        self.assertEqual(fechas.interpretar("mañana", AHORA), ("2026-09-05", None, ""))
+        self.assertEqual(fechas.interpretar("mañana", AHORA), ("2026-09-05", None, False, ""))
 
     def test_anteayer_y_antes_de_ayer(self):
         self.assertEqual(fechas.interpretar("anteayer", AHORA)[0], "2026-09-02")
@@ -90,7 +90,7 @@ class TestDiasDeLaSemana(unittest.TestCase):
 
     def test_el_jueves_que_viene(self):
         self.assertEqual(fechas.interpretar("cena el jueves que viene", AHORA),
-                         ("2026-09-10", None, "cena"))
+                         ("2026-09-10", None, False, "cena"))
 
     def test_con_tilde_y_sin_tilde(self):
         self.assertEqual(fechas.interpretar("el miércoles", AHORA)[0],
@@ -107,7 +107,7 @@ class TestFechasExplicitas(unittest.TestCase):
 
     def test_formato_iso(self):
         self.assertEqual(fechas.interpretar("revisión 2026-12-25 a las 8", AHORA),
-                         ("2026-12-25", "08:00", "revisión"))
+                         ("2026-12-25", "08:00", False, "revisión"))
 
     def test_formato_con_barras(self):
         self.assertEqual(fechas.interpretar("15/10", AHORA)[0], "2026-10-15")
@@ -119,11 +119,11 @@ class TestFechasExplicitas(unittest.TestCase):
 class TestHoras(unittest.TestCase):
     def test_hora_con_minutos_sin_fecha_es_hoy(self):
         self.assertEqual(fechas.interpretar("a las 16:30", AHORA),
-                         ("2026-09-04", "16:30", ""))
+                         ("2026-09-04", "16:30", False, ""))
 
     def test_hora_suelta(self):
         self.assertEqual(fechas.interpretar("a las 5", AHORA),
-                         ("2026-09-04", "05:00", ""))
+                         ("2026-09-04", "05:00", False, ""))
 
     def test_la_hora_suelta_es_literal(self):
         # «a las 5» son las 5:00, no las 17:00. Es la única lectura coherente
@@ -143,51 +143,142 @@ class TestHoras(unittest.TestCase):
 
     def test_formato_con_h(self):
         self.assertEqual(fechas.interpretar("entreno 20h", AHORA),
-                         ("2026-09-04", "20:00", "entreno"))
+                         ("2026-09-04", "20:00", False, "entreno"))
 
 
 class TestFranjas(unittest.TestCase):
     def test_esta_noche(self):
         self.assertEqual(fechas.interpretar("esta noche", AHORA),
-                         ("2026-09-04", "21:00", ""))
+                         ("2026-09-04", "21:00", True, ""))
 
     def test_esta_manana(self):
         self.assertEqual(fechas.interpretar("esta mañana", AHORA),
-                         ("2026-09-04", "09:00", ""))
+                         ("2026-09-04", "09:00", True, ""))
 
     def test_manana_por_la_manana_son_dos_cosas_distintas(self):
         # El caso que más se presta a confusión: el primer «mañana» es el día
         # siguiente y el segundo es la franja horaria.
         self.assertEqual(fechas.interpretar("correr mañana por la mañana", AHORA),
-                         ("2026-09-05", "09:00", "correr"))
+                         ("2026-09-05", "09:00", True, "correr"))
 
     def test_ayer_por_la_noche(self):
         self.assertEqual(fechas.interpretar("ayer por la noche", AHORA),
-                         ("2026-09-03", "21:00", ""))
+                         ("2026-09-03", "21:00", True, ""))
 
     def test_la_hora_explicita_gana_a_la_franja(self):
         self.assertEqual(fechas.interpretar("mañana por la tarde a las 18:45", AHORA),
-                         ("2026-09-05", "18:45", ""))
+                         ("2026-09-05", "18:45", False, ""))
 
     def test_al_mediodia(self):
         self.assertEqual(fechas.interpretar("comida el sábado al mediodía", AHORA),
-                         ("2026-09-05", "14:00", "comida"))
+                         ("2026-09-05", "14:00", True, "comida"))
+
+
+class TestAcotada(unittest.TestCase):
+    """¿Vino la hora con mañana/tarde/noche, o es un número suelto?
+
+    «acotada» es lo que separa una hora de verdad de una que solo lo parece:
+    «a las 5» son las 05:00 tal cual (ver TestHoras), pero sin saber si quien
+    lo escribió quería decir las 17:00. `hora_ambigua()` es la que decide si
+    eso hay que preguntarlo.
+    """
+
+    def test_hora_suelta_no_esta_acotada(self):
+        self.assertEqual(fechas.interpretar("a las 5", AHORA)[2], False)
+
+    def test_hora_con_de_la_tarde_esta_acotada(self):
+        self.assertEqual(fechas.interpretar("a las 5 de la tarde", AHORA)[2], True)
+
+    def test_hora_de_24h_no_esta_acotada_pero_tampoco_hace_falta(self):
+        # «a las 17» no lleva mañana/tarde/noche, así que acotada es False —
+        # pero 17 ya no admite dos lecturas, así que da igual.
+        self.assertEqual(fechas.interpretar("a las 17", AHORA)[2], False)
+
+    def test_franja_sola_esta_acotada(self):
+        # «por la tarde» no es un número suelto: es la hora canónica de la
+        # franja, explícita por construcción.
+        self.assertEqual(fechas.interpretar("por la tarde", AHORA)[2], True)
+
+    def test_sin_hora_no_esta_acotada(self):
+        self.assertEqual(fechas.interpretar("mañana", AHORA)[2], False)
+
+
+class TestHoraAmbigua(unittest.TestCase):
+    """`hora_ambigua()`: lo que decide si hay que preguntar."""
+
+    def test_hora_suelta_por_debajo_de_doce_es_ambigua(self):
+        self.assertTrue(fechas.hora_ambigua("05:00", False))
+        self.assertTrue(fechas.hora_ambigua("11:59", False))
+
+    def test_acotada_nunca_es_ambigua(self):
+        self.assertFalse(fechas.hora_ambigua("05:00", True))
+
+    def test_a_partir_de_las_doce_no_hay_duda(self):
+        self.assertFalse(fechas.hora_ambigua("12:00", False))
+        self.assertFalse(fechas.hora_ambigua("17:00", False))
+
+    def test_sin_hora_no_hay_nada_que_confirmar(self):
+        self.assertFalse(fechas.hora_ambigua(None, False))
+
+
+class TestAcotar(unittest.TestCase):
+    """`acotar()`: aplicar la franja que faltaba a una hora ya guardada."""
+
+    def test_tarde_suma_doce(self):
+        self.assertEqual(fechas.acotar("05:00", "tarde"), "17:00")
+
+    def test_noche_suma_doce(self):
+        self.assertEqual(fechas.acotar("09:30", "noche"), "21:30")
+
+    def test_manana_no_toca_nada(self):
+        self.assertEqual(fechas.acotar("05:00", "manana"), "05:00")
+
+    def test_mediodia_solo_si_es_madrugada(self):
+        self.assertEqual(fechas.acotar("02:00", "mediodia"), "14:00")
+        self.assertEqual(fechas.acotar("09:00", "mediodia"), "09:00")
+
+    def test_hora_ya_de_tarde_no_se_dobla(self):
+        self.assertEqual(fechas.acotar("17:00", "tarde"), "17:00")
+
+    def test_sin_franja_no_cambia(self):
+        self.assertEqual(fechas.acotar("05:00", None), "05:00")
+
+
+class TestFranjaRespondida(unittest.TestCase):
+    """`franja_respondida()`: entender la respuesta a «¿mañana o tarde?»."""
+
+    def test_una_palabra_sola_basta(self):
+        self.assertEqual(fechas.franja_respondida("tarde"), "tarde")
+        self.assertEqual(fechas.franja_respondida("mañana"), "manana")
+        self.assertEqual(fechas.franja_respondida("noche"), "noche")
+
+    def test_con_preposicion_tambien(self):
+        self.assertEqual(fechas.franja_respondida("de la tarde"), "tarde")
+        self.assertEqual(fechas.franja_respondida("por la mañana"), "manana")
+
+    def test_sin_tildes_tambien(self):
+        self.assertEqual(fechas.franja_respondida("manana"), "manana")
+
+    def test_lo_que_no_es_una_franja(self):
+        self.assertIsNone(fechas.franja_respondida("vale"))
+        self.assertIsNone(fechas.franja_respondida(""))
+        self.assertIsNone(fechas.franja_respondida(None))
 
 
 class TestTextoRestante(unittest.TestCase):
     def test_se_quita_la_expresion_y_se_cuadran_los_espacios(self):
-        self.assertEqual(fechas.interpretar("mañana a las 10 llamar al fontanero", AHORA)[2],
+        self.assertEqual(fechas.interpretar("mañana a las 10 llamar al fontanero", AHORA)[3],
                          "llamar al fontanero")
 
     def test_la_expresion_en_medio_no_pega_las_palabras(self):
-        self.assertEqual(fechas.interpretar("llamar mañana al fontanero", AHORA)[2],
+        self.assertEqual(fechas.interpretar("llamar mañana al fontanero", AHORA)[3],
                          "llamar al fontanero")
 
     def test_se_limpian_los_signos_que_quedan_colgando(self):
-        self.assertEqual(fechas.interpretar("comprar pan, mañana", AHORA)[2], "comprar pan")
+        self.assertEqual(fechas.interpretar("comprar pan, mañana", AHORA)[3], "comprar pan")
 
     def test_el_resto_conserva_mayusculas_y_tildes_del_original(self):
-        self.assertEqual(fechas.interpretar("Revisión Médica mañana", AHORA)[2],
+        self.assertEqual(fechas.interpretar("Revisión Médica mañana", AHORA)[3],
                          "Revisión Médica")
 
 
@@ -243,7 +334,7 @@ class TestHaciaAtras(unittest.TestCase):
     def test_el_lunes_es_el_lunes_pasado(self):
         # AHORA es viernes 4 de septiembre: el lunes pasado es el 31 de agosto.
         self.assertEqual(fechas.interpretar("fui al médico el lunes", AHORA, hacia_atras=True),
-                         ("2026-08-31", None, "fui al médico"))
+                         ("2026-08-31", None, False, "fui al médico"))
 
     def test_el_mismo_dia_de_la_semana_es_hace_una_semana_no_hoy(self):
         self.assertEqual(fechas.interpretar("el viernes", AHORA, hacia_atras=True)[0], "2026-08-28")
@@ -265,7 +356,7 @@ class TestHaciaAtras(unittest.TestCase):
 class TestHaceNDias(unittest.TestCase):
     def test_hace_tres_dias(self):
         self.assertEqual(fechas.interpretar("cené fuera hace 3 días", AHORA),
-                         ("2026-09-01", None, "cené fuera"))
+                         ("2026-09-01", None, False, "cené fuera"))
 
     def test_hace_dos_semanas(self):
         self.assertEqual(fechas.interpretar("hace 2 semanas", AHORA)[0], "2026-08-21")

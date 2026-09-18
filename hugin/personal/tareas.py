@@ -114,7 +114,7 @@ def _cuando(texto: str, ahora: datetime | None) -> tuple[str, str | None, str | 
     encontrado = interpretar(texto, ahora, hacia_atras=False)
     if not encontrado:
         return texto.strip(), None, None
-    fecha, hora, resto = encontrado
+    fecha, hora, _acotada, resto = encontrado
     return (resto.strip() or texto.strip()), fecha, hora
 
 
@@ -182,7 +182,7 @@ def aplazar(id_tarea: int, cuando: str, inq=None, ahora: datetime | None = None)
     if not encontrado:
         raise ValueError(
             f"no entiendo cuándo es {cuando!r}: prueba «mañana», «el lunes», «el 15 de octubre»")
-    fecha, hora, _ = encontrado
+    fecha, hora, _acotada, _resto = encontrado
     return _cambiar(id_tarea, inq, fecha=fecha, hora=hora)
 
 

@@ -133,13 +133,17 @@ def agregar(texto: str, inq=None, ahora: datetime | None = None,
         raise ValueError(
             "una cita necesita cuándo es: prueba «médico mañana a las 10», "
             "«dentista el 15 de octubre a las 17:30»")
-    fecha, hora, resto = encontrado
+    fecha, hora, acotada, resto = encontrado
     citas = cargar(inq)
     nueva = {
         "id": max((c["id"] for c in citas), default=0) + 1,
         "texto": resto.strip() or texto.strip(),
         "fecha": fecha,
         "hora": hora,
+        # «a las cinco» sin mañana/tarde/noche: se guarda tal cual (nunca se
+        # inventa una franja), pero se marca para que quien pregunte por ella
+        # pueda pedir que se confirme, en vez de asumir que son las 05:00.
+        "hora_sin_confirmar": fechas.hora_ambigua(hora, acotada),
         "duracion": duracion or DURACION_POR_DEFECTO,
         "creada": (ahora or fechas.ahora()).strftime(FORMATO_FECHA),
     }
@@ -155,10 +159,31 @@ def mover(id_cita: int, cuando: str, inq=None, ahora: datetime | None = None) ->
     if not encontrado:
         raise ValueError(
             f"no entiendo cuándo es {cuando!r}: prueba «mañana a las 10», «el 15 de octubre»")
-    fecha, hora, _ = encontrado
+    fecha, hora, acotada, _ = encontrado
     citas = cargar(inq)
     cita = _buscar(citas, id_cita)
     cita["fecha"], cita["hora"] = fecha, hora
+    cita["hora_sin_confirmar"] = fechas.hora_ambigua(hora, acotada)
+    solapan = choques(cita, citas)
+    guardar(citas, inq)
+    return cita, solapan
+
+
+def confirmar_hora(id_cita: int, franja: str, inq=None) -> dict:
+    """Aplica la franja que faltaba a una cita con `hora_sin_confirmar`.
+
+    Es la respuesta a «¿de la mañana o de la tarde?»: no se vuelve a
+    interpretar la frase entera, solo se ajusta la hora que ya había con
+    `fechas.acotar()`. `ValueError` si la cita no tenía nada pendiente —
+    aplicar una franja a una hora ya confirmada sería adivinar por su cuenta,
+    justo lo que esto existe para no hacer.
+    """
+    citas = cargar(inq)
+    cita = _buscar(citas, id_cita)
+    if not cita.get("hora_sin_confirmar"):
+        raise ValueError(f"la cita {id_cita} no tiene ninguna hora por confirmar")
+    cita["hora"] = fechas.acotar(cita["hora"], franja)
+    cita["hora_sin_confirmar"] = False
     solapan = choques(cita, citas)
     guardar(citas, inq)
     return cita, solapan
@@ -190,6 +215,8 @@ def de_la_semana(fecha: str | None = None, inq=None) -> list[dict]:
 def linea(c: dict, con_fecha: bool = False) -> str:
     cuando = f"{c['fecha']} " if con_fecha else ""
     cuando += c["hora"] if c.get("hora") else "todo el día"
+    if c.get("hora_sin_confirmar"):
+        cuando += " (¿mañana o tarde?)"
     return f"  📅 [{c['id']}] {cuando} · {c['texto']}"
 
 

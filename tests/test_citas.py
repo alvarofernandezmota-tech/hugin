@@ -48,7 +48,10 @@ class TestCitas(unittest.TestCase):
     def test_agregar_saca_la_fecha_del_texto(self):
         cita, solapan = citas.agregar("médico mañana a las 10", self.inq, AHORA)
         self.assertEqual(solapan, [])
+        # «a las 10» sin mañana/tarde/noche: la hora se guarda tal cual, pero
+        # marcada como sin confirmar (ver TestHoraSinConfirmar más abajo).
         self.assertEqual(cita, {"id": 1, "texto": "médico", "fecha": MANANA, "hora": "10:00",
+                                "hora_sin_confirmar": True,
                                 "duracion": 60, "creada": "2026-09-05 17:10"})
         # En disco va envuelto con su versión de esquema (ADR-012, apartado 7).
         self.assertEqual(json.loads(self.ruta.read_text(encoding="utf-8")),
@@ -114,7 +117,7 @@ class TestCitas(unittest.TestCase):
         self.assertEqual([c["id"] for c in citas.de_la_semana(HOY, self.inq)], [3, 2, 1])
 
     def test_resumen_de_la_semana_agrupa_por_dia(self):
-        self._cita("médico mañana a las 10")
+        self._cita("médico mañana a las 10 de la mañana")
         self._cita("dentista el lunes a las 17")
         lineas = citas.resumen(HOY, self.inq, semana=True).splitlines()
         self.assertEqual(lineas[0], "Citas del 2026-09-05 al 2026-09-11:")
@@ -184,6 +187,55 @@ class TestFechasEnLenguajeNatural(unittest.TestCase):
 
     def test_iso_como_siempre(self):
         self.assertIn("Sin citas el 2026-01-01", citas.resumen("2026-01-01", self.inq))
+
+
+class TestHoraSinConfirmar(unittest.TestCase):
+    """«a las cinco» sin mañana/tarde/noche: se guarda, pero se marca.
+
+    Antes esto se colaba como 05:00 sin más, con el mismo riesgo que ya
+    tenía el lado de negocio (`hugin/mente/recepcion.py`): una cita a las
+    5 de la madrugada porque nadie preguntó si era de la tarde.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.inq = _inq(Path(self.tmp.name) / "inquilino")
+
+    def test_hora_suelta_se_marca_sin_confirmar(self):
+        cita, _ = citas.agregar("médico mañana a las 5", self.inq, AHORA)
+        self.assertTrue(cita["hora_sin_confirmar"])
+
+    def test_hora_con_franja_no_se_marca(self):
+        cita, _ = citas.agregar("médico mañana a las 5 de la tarde", self.inq, AHORA)
+        self.assertFalse(cita["hora_sin_confirmar"])
+
+    def test_hora_de_tarde_sin_ambiguedad_no_se_marca(self):
+        cita, _ = citas.agregar("médico mañana a las 17", self.inq, AHORA)
+        self.assertFalse(cita["hora_sin_confirmar"])
+
+    def test_sin_hora_no_hay_nada_que_confirmar(self):
+        cita, _ = citas.agregar("médico mañana", self.inq, AHORA)
+        self.assertFalse(cita["hora_sin_confirmar"])
+
+    def test_linea_avisa_de_la_ambiguedad(self):
+        cita, _ = citas.agregar("médico mañana a las 5", self.inq, AHORA)
+        self.assertIn("(¿mañana o tarde?)", citas.linea(cita))
+
+    def test_linea_no_avisa_si_esta_confirmada(self):
+        cita, _ = citas.agregar("médico mañana a las 5 de la tarde", self.inq, AHORA)
+        self.assertNotIn("(¿mañana o tarde?)", citas.linea(cita))
+
+    def test_mover_tambien_marca_la_ambiguedad(self):
+        cita, _ = citas.agregar("médico mañana a las 5 de la tarde", self.inq, AHORA)
+        movida, _ = citas.mover(cita["id"], "el lunes a las 6", self.inq, AHORA)
+        self.assertTrue(movida["hora_sin_confirmar"])
+
+    def test_mover_tambien_limpia_la_ambiguedad(self):
+        cita, _ = citas.agregar("médico mañana a las 5", self.inq, AHORA)
+        self.assertTrue(cita["hora_sin_confirmar"])
+        movida, _ = citas.mover(cita["id"], "el lunes a las 6 de la tarde", self.inq, AHORA)
+        self.assertFalse(movida["hora_sin_confirmar"])
 
 
 if __name__ == "__main__":

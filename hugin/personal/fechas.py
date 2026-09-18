@@ -14,7 +14,7 @@ Uso:
     >>> from datetime import datetime
     >>> ahora = datetime(2026, 9, 4, 20, 0)
     >>> interpretar("quedada mañana a las 10", ahora)
-    ('2026-09-05', '10:00', 'quedada')
+    ('2026-09-05', '10:00', False, 'quedada')
     >>> interpretar("comprar el pan", ahora) is None
     True
 
@@ -237,6 +237,7 @@ def interpretar(texto, ahora=None, hacia_atras=False):
     ocupados = []
 
     fecha = hora = None
+    acotada = False   # ¿vino la hora con mañana/tarde/noche, o es un número suelto?
 
     clave_hora, m_hora = _buscar(PATRONES_HORA, plano, ocupados)
     if m_hora:
@@ -253,6 +254,7 @@ def interpretar(texto, ahora=None, hacia_atras=False):
                 # mediodía. Son los dos únicos casos donde el 12 no es 12.
                 h = 0
             fin = sufijo.end()
+            acotada = True
         if h < 24 and minutos < 60:
             hora = f"{h:02d}:{minutos:02d}"
             ocupados.append((m_hora.start(), fin))
@@ -262,6 +264,7 @@ def interpretar(texto, ahora=None, hacia_atras=False):
         ocupados.append((m_franja.start(), m_franja.end()))
         if hora is None:
             hora = f"{FRANJAS[m_franja.group(1)]:02d}:00"
+            acotada = True
         if clave_franja == "hoy":
             fecha = base
 
@@ -275,8 +278,47 @@ def interpretar(texto, ahora=None, hacia_atras=False):
     if fecha is None and hora is None:
         return None
 
-    return (fecha or base).isoformat(), hora, _limpiar(texto, ocupados)
+    return (fecha or base).isoformat(), hora, acotada, _limpiar(texto, ocupados)
 
+
+def hora_ambigua(hora, acotada):
+    """¿«Las cinco» podrían ser las 17:00 y nadie lo ha dicho?
+
+    A partir de las 12 no hay duda: «las 17» son las 17. La ambigüedad solo
+    existe por debajo, y es la que puede avisar de una cita a las 5 de la
+    madrugada en vez de a las 5 de la tarde. Mismo criterio que
+    `hugin.mente.recepcion._ambigua`, para el lado personal.
+    """
+    return hora is not None and not acotada and int(hora[:2]) < 12
+
+
+def acotar(hora, franja):
+    """«Las cinco» con «tarde» son las 17:00. Sin franja se devuelve tal cual.
+
+    Mismo criterio que `hugin.mente.fechas.acotar`: por la mañana no se
+    toca nada, y «mediodía» solo suma doce si la hora es de madrugada.
+    """
+    h, m = hora.split(":")
+    h = int(h)
+    if franja in ("tarde", "noche") and h < 12:
+        h += 12
+    elif franja == "mediodia" and h < 4:
+        h += 12
+    return f"{h:02d}:{m}"
+
+
+def franja_respondida(texto):
+    """La franja (mañana/tarde/noche/madrugada/mediodía) de una respuesta corta.
+
+    Para cuando el bot ya preguntó «¿de la mañana o de la tarde?» y lo que
+    llega es la respuesta: aquí «mañana» sí es la franja, sin ambigüedad con
+    «el día siguiente» — a diferencia de `franja_en` en
+    `hugin.mente.fechas`, que exige preposición porque escanea una frase
+    suelta donde esa ambigüedad sí existe. `None` si la respuesta no
+    menciona ninguna franja.
+    """
+    m = re.search(r"\b(madrugada|manana|mediodia|tarde|noche)\b", _plano(texto or ""))
+    return m.group(1) if m else None
 
 
 # ---- para los comandos: una fecha suelta, delante o detrás ---------------
@@ -294,7 +336,7 @@ def como_fecha(texto, ahora=None, hacia_atras=False):
     resultado = interpretar(texto, ahora, hacia_atras)
     if resultado is None:
         return None
-    fecha, hora, resto = resultado
+    fecha, hora, _acotada, resto = resultado
     return fecha if not resto and hora is None else None
 
 

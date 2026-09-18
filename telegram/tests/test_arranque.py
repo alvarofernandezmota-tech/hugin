@@ -3,8 +3,9 @@
 El fallo (auditoría del 2026-09-08, sección «Ahora»): al reiniciar Madre la
 red tarda un minuto, bot.py moría con NetworkError, y systemd gastaba sus 5
 reintentos en ~50 s y dejaba la unidad `failed` para siempre. Arreglo en dos
-mitades: quitar el tope de systemd (bifrost.service) y que bot.arrancar()
-reintente ante NetworkError pero NO ante InvalidToken.
+mitades: quitar el tope de systemd (entonces bifrost.service, hoy
+hugin-telegram.service) y que bot.arrancar() reintente ante NetworkError
+pero NO ante InvalidToken.
 
 Estas pruebas usan la librería real (NetworkError/InvalidToken de verdad), así
 que se saltan si está cargado el telegram falso de dobles.py, igual que
@@ -77,7 +78,7 @@ class TestArrancar(unittest.TestCase):
 class TestLaUnidadSystemd(unittest.TestCase):
     """Esto no toca telegram: vale con doble o sin él."""
 
-    UNIDAD = (Path(__file__).resolve().parent.parent / "systemd" / "bifrost.service").read_text(encoding="utf-8")
+    UNIDAD = (Path(__file__).resolve().parent.parent / "systemd" / "hugin-telegram.service").read_text(encoding="utf-8")
 
     def test_sin_tope_de_reintentos(self):
         # StartLimitIntervalSec=0 desactiva el tope; sin esto, un corte de red

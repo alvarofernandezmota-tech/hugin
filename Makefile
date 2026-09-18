@@ -6,7 +6,6 @@
 
 VENV := .venv
 PY   := $(VENV)/bin/python
-PIP  := $(VENV)/bin/pip
 RUFF := $(VENV)/bin/ruff
 
 .DEFAULT_GOAL := ayuda
@@ -15,13 +14,20 @@ ayuda:  ## esta lista
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*## */\t/' | column -t -s "$$(printf '\t')"
 
 $(PY):
+	@# Nada de >/dev/null aqui: con una conexion lenta, pip tarda minutos en
+	@# bajar los paquetes y sin salida esto parece un cuelgue. Alguien acaba
+	@# matandolo a Ctrl+C a medias y dejando el venv incompleto.
+	@#
+	@# Y `python -m pip`, nunca `$(VENV)/bin/pip`: ese script lleva el
+	@# interprete escrito en el shebang, asi que si el venv se creo en otra
+	@# ruta instala en el venv de ALLI diciendo "Successfully installed".
 	python3 -m venv $(VENV)
-	$(PIP) install --upgrade pip >/dev/null
+	$(PY) -m pip install --upgrade pip
 	@# Editable, no solo ruff: sin esto `import hugin` depende de que cada
 	@# fichero se apane el sys.path, que es justo lo que el ADR-024 quita.
-	@$(PIP) install -e ".[dev,test,postgres]" >/dev/null 2>&1 || \
-	  $(PIP) install -e . >/dev/null 2>&1 || \
-	  echo "⚠️  no he podido instalar el paquete (¿sin red?). `make pruebas` va a fallar."
+	$(PY) -m pip install -e ".[dev,test,postgres]" || \
+	  { echo "⚠️  no he podido instalar el paquete entero. Reintenta, o instala"; \
+	    echo "   sin los extras:  $(PY) -m pip install -e ."; exit 1; }
 
 instalar: $(PY)  ## venv + el paquete en editable + ruff
 

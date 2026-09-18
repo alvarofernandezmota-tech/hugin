@@ -1,0 +1,27 @@
+#!/bin/sh
+# Corre `make pruebas` antes de cada push: las tres suites y el lint.
+#
+# Existe porque hoy NO hay CI: un cobro rechazado bloquea Actions en toda la
+# cuenta desde el 2026-09-04, y los jobs salen en rojo sin llegar a coger
+# runner. Mientras siga asi, esto es la unica verificacion real que hay.
+#
+# NO se activa solo, hay que decirselo a git:
+#
+#   git config core.hooksPath .githooks
+#
+# Y eso es a proposito. Hay copias donde no debe activarse nunca: la del bot
+# hace push en cada mensaje de Telegram (ADR-013), y ahi el gancho anadiria
+# segundos a cada apunte y, peor, una prueba en rojo por algo sin relacion
+# bloquearia la subida del diario sin que nadie se entere.
+#
+# Para saltarselo una vez: git push --no-verify
+
+echo "→ verificando antes de subir (git push --no-verify para saltarlo)"
+
+raiz="$(git rev-parse --show-toplevel)"
+if ! make -C "$raiz" pruebas; then
+    echo
+    echo "✋ Push cancelado: algo está en rojo."
+    echo "   Si de verdad quieres subirlo: git push --no-verify"
+    exit 1
+fi

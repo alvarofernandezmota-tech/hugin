@@ -28,6 +28,12 @@ from hugin.guardado import datos  # noqa: E402
 from hugin.mente import memoria  # noqa: E402
 from hugin.negocio import negocio as negocios  # noqa: E402
 
+# Abierto todo el día, todos los días: a esta prueba no le importa el
+# horario, solo que haya una cita de verdad que guardar. Desde que
+# Agenda.reservar() exige un horario escrito, Agenda(..., None) ya no deja
+# reservar nada, ni siquiera para sembrar datos de prueba.
+_HORARIO_ABIERTO = _agenda.Horario.desde({dia: ["00:00-23:59"] for dia in _agenda.DIAS})
+
 
 class CasoDatos(unittest.TestCase):
     def setUp(self):
@@ -70,7 +76,8 @@ class TestCadaBotLoSuyo(CasoDatos):
         datos.usar("peluqueria")
         avisos.registrar("llamada", "algo")
         memoria.apuntar_llamada("+34600111222", "Marta")
-        _agenda.Agenda("peluqueria", None).reservar("2030-01-01", "10:00", 30, None, "Marta")
+        _agenda.Agenda("peluqueria", _HORARIO_ABIERTO).reservar(
+            "2030-01-01", "10:00", 30, None, "Marta")
         suyos = sorted(p.name for p in (self.raiz / "peluqueria").iterdir())
         self.assertEqual(suyos, ["agenda.json", "avisos.json", "clientes.json"])
 

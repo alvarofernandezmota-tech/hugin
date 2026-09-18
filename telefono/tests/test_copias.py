@@ -26,6 +26,13 @@ from hugin.negocio import negocio as negocios  # noqa: E402
 
 HOY = date(2026, 9, 11)
 
+# Abierto todo el día, todos los días: a estas pruebas no les importa el
+# horario, solo que haya una cita de verdad que copiar. Desde que
+# Agenda.reservar() exige un horario escrito ("se reserva contra el
+# horario escrito o no se reserva"), un Agenda(..., None) ya no deja
+# reservar nada, ni siquiera para sembrar datos de prueba.
+_HORARIO_ABIERTO = _agenda.Horario.desde({dia: ["00:00-23:59"] for dia in _agenda.DIAS})
+
 
 class CasoCopias(unittest.TestCase):
     def setUp(self):
@@ -37,7 +44,8 @@ class CasoCopias(unittest.TestCase):
     def con_datos(self):
         avisos.registrar("llamada", "una llamada")
         memoria.apuntar_llamada("+34600111222", "Marta")
-        _agenda.Agenda("peluqueria", None).reservar("2030-01-01", "10:00", 30, "Tinte", "Marta")
+        _agenda.Agenda("peluqueria", _HORARIO_ABIERTO).reservar(
+            "2030-01-01", "10:00", 30, "Tinte", "Marta")
 
 
 class TestHacerLaCopia(CasoCopias):

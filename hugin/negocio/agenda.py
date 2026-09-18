@@ -63,8 +63,14 @@ def _hora(minutos: int) -> str:
     return f"{minutos // 60:02d}:{minutos % 60:02d}"
 
 
+_HORAS_DICHAS = {"un": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4}
+_FRACCION_DICHA = {"cuarto": 15, "media": 30, "tres cuartos": 45}
+
+
 def duracion_en_minutos(texto: str | None) -> int:
-    """«90 min», «1 h», «1h30» → minutos. Sin nada reconocible, el defecto."""
+    """«90 min», «1 h», «1h30», «hora y media» → minutos. Sin nada
+    reconocible, el defecto.
+    """
     if not texto:
         return DURACION_POR_DEFECTO
     t = texto.lower().replace(",", ".")
@@ -74,6 +80,17 @@ def duracion_en_minutos(texto: str | None) -> int:
         return int(float(m.group(1)))
     if m := re.search(r"(\d+)", t):
         return int(m.group(1))
+    # Sin ningún dígito: «hora y media», «media hora», «tres cuartos de
+    # hora». Antes esto caía siempre al defecto de 30 min, que para «hora y
+    # media» (90) se queda muy corto — justo al revés de «mejor pasarse».
+    if m := re.search(r"(tres\s+cuartos|cuarto|media)\s+(?:de\s+)?hora\b", t):
+        return _FRACCION_DICHA[re.sub(r"\s+", " ", m.group(1))]
+    if m := re.search(
+            rf"({'|'.join(_HORAS_DICHAS)})\s+horas?(?:\s+y\s+(cuarto|media))?\b", t):
+        minutos = _HORAS_DICHAS[m.group(1)] * 60
+        if m.group(2):
+            minutos += _FRACCION_DICHA[m.group(2)]
+        return minutos
     return DURACION_POR_DEFECTO
 
 
@@ -93,6 +110,17 @@ class Horario:
             clave = fechas.sin_tildes(nombre)
             if clave not in DIAS:
                 raise ValueError(f"[horario]: «{nombre}» no es un día. Valen: {', '.join(DIAS)}")
+            if lista is not None and not isinstance(lista, list):
+                # Sin esto, un valor que no sea ni lista ni None —un numero,
+                # un booleano, una tabla TOML— revienta con un TypeError
+                # crudo al iterarlo ("object is not iterable") en vez del
+                # ValueError amigable de aqui abajo. Una cadena SI es
+                # iterable (caracter a caracter) y ya acababa en el
+                # ValueError de mas abajo, asi que no hace falta cubrirla
+                # aparte, pero se nombra igual para que el aviso sea claro.
+                raise ValueError(
+                    f"[horario] {nombre}: tiene que ser una lista de tramos "
+                    f"(\"HH:MM-HH:MM\"), no {type(lista).__name__}")
             dia = []
             for tramo in lista or []:
                 m = TRAMO.match(str(tramo))
@@ -214,9 +242,15 @@ class Agenda:
 
         pasado | cerrado | fuera | ocupado. El orden importa: «ya ha pasado»
         explica mejor que «esta ocupado» una hora de esta manana.
+
+        Sin horario escrito se devuelve "cerrado", nunca None: "se reserva
+        contra el horario escrito o no se reserva" — devolver None aqui
+        decia "no hay ningun motivo para no reservar" y dejaba confirmar
+        cualquier fecha y hora sin comprobar nada, ni siquiera que no
+        hubiera pasado ya o que no chocara con otra cita.
         """
         if self.horario is None:
-            return None
+            return "cerrado"
         if self._ya_paso(fecha, hora):
             return "pasado"
         dia = date.fromisoformat(fecha)

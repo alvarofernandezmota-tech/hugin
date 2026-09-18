@@ -1,13 +1,14 @@
 """Pruebas de handlers/recordatorios.py: lo único que habla sin que le hablen.
 
-Lo que decide qué avisar se prueba en midgaror (diario/tests/test_recordatorios.py).
-Aquí se prueba lo que puede convertir esto en spam o en silencio: que se
-anote DESPUÉS de mandar, que un fallo de Telegram no dé la cita por avisada,
-y que nada de esto pueda tirar el bucle.
+Lo que decide qué avisar se prueba en el cerebro (tests/test_recordatorios.py,
+de hugin.personal.recordatorios). Aquí se prueba lo que puede convertir esto
+en spam o en silencio: que se anote DESPUÉS de mandar, que un fallo de
+Telegram no dé la cita por avisada, y que nada de esto pueda tirar el bucle.
 """
 
 import sys
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -37,18 +38,18 @@ class App:
 class CasoAvisos(CasoBot):
     def setUp(self):
         super().setUp()
-        # El módulo de midgaror escribe su estado donde le digamos.
+        # El módulo de recordatorios ahora vive en el cerebro, contra el
+        # inquilino de la propia prueba (self.inquilino, ver CasoBot).
         self.recordatorios = recordatorios.recordatorios
-        self.recordatorios.RUTA_AVISADOS = self.base / "avisados.json"
         # Una cita de aquí a diez minutos: dentro de la ventana, siempre.
         from datetime import timedelta
-        fechas = self.recordatorios.fechas
+        from hugin.personal import citas as citas_cerebro, fechas
         cuando = fechas.ahora() + timedelta(minutes=10)
-        citas = self.agenda_vieja.cargar()
-        citas.append({"id": 1, "texto": "médico", "fecha": cuando.date().isoformat(),
+        todas = citas_cerebro.cargar(self.inquilino)
+        todas.append({"id": 1, "texto": "médico", "fecha": cuando.date().isoformat(),
                       "hora": cuando.strftime("%H:%M"), "duracion": 60,
                       "creada": "2026-09-17 20:00"})
-        self.agenda_vieja.guardar(citas)
+        citas_cerebro.guardar(todas, self.inquilino)
 
     def avisar(self, bot):
         import asyncio
@@ -126,33 +127,36 @@ class TestElBucleSeRecogeAlApagar(CasoAvisos):
 
 
 class TestElHuecoConElCerebro(CasoBot):
-    """El hueco real entre `/cita` (cerebro, fase 5) y `recordatorios`
-    (todavía midgaror), dejado a propósito en el ADR-024 y documentado en
-    `dobles.py`.
+    """El hueco que hubo entre `/cita` (cerebro, fase 5) y `recordatorios`
+    (todavía midgaror en ese momento), dejado a propósito y documentado en
+    su día en `dobles.py`, y cerrado al portar `diario/recordatorios.py` a
+    `hugin/personal/recordatorios.py` (ver su docstring).
 
-    No es hipotético: `handlers/recordatorios.py` no se toca en esta fase
-    porque su lógica de a quién avisar vive en `diario/recordatorios.py`,
-    que sigue leyendo el `agenda.json` de MIDGAROR. Una cita apuntada con
-    `/cita` va al cerebro, a la carpeta del inquilino — un fichero
-    distinto. Esta prueba deja escrito el hueco para que no se olvide
-    hasta que le llegue su turno (la fase 5 mueve el canal entero, y
-    `recordatorios.py` con él).
+    Antes esta prueba comprobaba que una cita de `/cita` NO la veía
+    `recordatorios`, porque leía el `agenda.json` viejo de midgaror. Ahora
+    comprueba lo contrario: que sí la ve, porque los dos leen ya el mismo
+    sitio, la carpeta del inquilino.
     """
 
-    def test_una_cita_por_cita_no_la_ve_recordatorios_todavia(self):
+    def test_una_cita_por_cita_ya_la_ve_recordatorios(self):
         from handlers.cita import comando_cita
-        from hugin.personal import citas
+        from handlers import recordatorios as handler_recordatorios
+        from hugin.personal import citas, fechas
 
         self.enviar(comando_cita, "médico", "mañana", "a", "las", "10")
 
-        # Se escribió de verdad, y en el sitio nuevo: la carpeta del
-        # inquilino, no diario/agenda/datos/agenda.json de midgaror.
-        self.assertEqual(len(citas.cargar(self.inquilino)), 1)
+        # Se escribió en la carpeta del inquilino...
+        escritas = citas.cargar(self.inquilino)
+        self.assertEqual(len(escritas), 1)
 
-        # Pero lo que lee recordatorios.pendientes() es el agenda.json
-        # VIEJO —self.agenda_vieja en dobles.py—, y ese sigue vacío:
-        # /cita y recordatorios ya no comparten fichero.
-        self.assertEqual(self.agenda_vieja.cargar(), [])
+        # ...y `recordatorios.pendientes()` la lee del mismo sitio: mirando
+        # justo en el momento de la cita, dentro de su ventana, la ve. Ya no
+        # hay dos ficheros distintos de por medio.
+        cita = escritas[0]
+        momento = datetime.fromisoformat(f"{cita['fecha']}T{cita['hora']}").replace(
+            tzinfo=fechas.ahora().tzinfo)
+        pendientes = handler_recordatorios.recordatorios.pendientes(self.inquilino, ahora=momento)
+        self.assertEqual([c["texto"] for c in pendientes], ["médico"])
 
 
 if __name__ == "__main__":

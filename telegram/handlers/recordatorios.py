@@ -24,12 +24,10 @@ import logging
 from telegram.ext import Application
 
 from handlers.voz import soltar_si_esta_ocioso as soltar_voz_si_esta_ociosa
+from hugin.personal import citas, recordatorios
 from utils.auth import chats_autorizados
+from utils.inquilino import actual as inquilino_actual
 from utils.limites import recortar
-from utils.midgaror import modulo
-
-agenda = modulo("agenda")
-recordatorios = modulo("recordatorios")
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +37,7 @@ CADA_SEGUNDOS = 60
 
 
 def texto_del_aviso(cita: dict) -> str:
-    return f"⏰ En un rato: {agenda.linea(cita)}"
+    return f"⏰ En un rato: {citas.linea(cita)}"
 
 
 async def avisar_una_vez(app: Application) -> int:
@@ -49,7 +47,8 @@ async def avisar_una_vez(app: Application) -> int:
     bot se quedaría mudo para siempre sin que nada lo dijera.
     """
     try:
-        pendientes = recordatorios.pendientes()
+        inq = inquilino_actual()
+        pendientes = recordatorios.pendientes(inq)
     except Exception:
         logger.exception("No se pudo mirar la agenda para los recordatorios")
         return 0
@@ -78,7 +77,7 @@ async def avisar_una_vez(app: Application) -> int:
     if mandados:
         # Anotar DESPUÉS de mandar, y solo lo que llegó a alguien.
         try:
-            recordatorios.anotar(mandados)
+            recordatorios.anotar(mandados, inq)
         except Exception:
             # Si esto falla, el aviso se repetirá. Molesto, pero es el lado
             # bueno del fallo: lo contrario es no avisar de una cita.

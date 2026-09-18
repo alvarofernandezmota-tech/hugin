@@ -262,7 +262,6 @@ class CasoBot(unittest.TestCase):
     """
 
     def setUp(self):
-        import agenda as agenda_vieja
         import organizar_diario
         from handlers import (apunte, cita, diario, entrada, habito, secciones,
                               tarea, texto)
@@ -291,15 +290,6 @@ class CasoBot(unittest.TestCase):
         self.tareas = _ConInquilino(tareas, self.inquilino)
         self.agenda = _ConInquilino(citas, self.inquilino)   # citas.py, no negocio/agenda.py
         self.habitos = _ConInquilino(habitos, self.inquilino)
-
-        # handlers/recordatorios.py NO se toca en esta fase (ADR-024): su
-        # logica de a quien avisar sigue en diario/recordatorios.py, que
-        # lee el agenda.json de MIDGAROR, no el del inquilino. Es un hueco
-        # real entre lo que /cita escribe ahora y lo que recordatorios lee
-        # hasta que le llegue su fase; sus pruebas siguen contra este
-        # modulo viejo, aparte de self.agenda.
-        agenda_vieja.RUTA_DATOS = base / "agenda-vieja.json"
-        self.agenda_vieja = agenda_vieja
 
         # La entrada del día, desde la plantilla real: si la plantilla cambia
         # y rompe las secciones, estas pruebas lo dicen.

@@ -3,24 +3,20 @@
 Un recepcionista telefónico: atiende la llamada, informa de tarifas y toma la
 cita.
 
-El cerebro —entender, decidir y recordar— vive aparte, en
-[hugin](https://github.com/alvarofernandezmota-tech/hugin), que entra aquí
-como submódulo ([ADR-019]). Esa separación es a propósito: hugin **no sabe
-que gjallarhorn existe**, así que el mismo cerebro sirve para el teléfono o
-para cualquier otro canal. Lo que hay en este repo es el canal —audio,
-telefonía— y las herramientas del dueño del negocio.
+El cerebro —entender, decidir y recordar— es
+[hugin](https://github.com/alvarofernandezmota-tech/hugin), del que
+`telefono/` es una carpeta más desde el ADR-024 (antes entraba como
+submódulo, ADR-019; el ADR-024 lo integró en un solo repo). Esa separación
+de responsabilidades sigue siendo a propósito, solo que ya no es una
+separación de REPOS: `hugin/` **no sabe que gjallarhorn existe** —no importa
+nada de `telefono/` ni de ningún canal—, así que el mismo cerebro sirve para
+el teléfono, para Telegram (`telegram/`) o para cualquier otro canal futuro.
+Lo que hay en esta carpeta es el canal —audio, telefonía— y las herramientas
+del dueño del negocio, que sí importan `hugin` como librería.
 
-> **Para clonarlo hace falta traer el submódulo**, o `hugin/` queda vacío y
-> el primer mensaje revienta con un `ImportError` que no dice que falte un
-> `git submodule`:
->
-> ```bash
-> git clone --recurse-submodules https://github.com/alvarofernandezmota-tech/gjallarhorn.git
-> ```
->
-> Si ya lo has clonado sin eso: `git submodule update --init --recursive`.
-> Y si hugin no es accesible para ti, el cerebro no se puede traer — pide
-> acceso antes de seguir.
+> **Clonar el repo entero basta.** Ya no hace falta traer ningún submódulo:
+> `telefono/` vive dentro de `hugin`, y arrancar aquí ya tiene `hugin/` al
+> lado sin nada más que hacer.
 
 > **Estado: funciona de punta a punta por voz, desde un móvil.** Conversa con
 > memoria, reserva contra el horario y avisa por Telegram. Falta la telefonía

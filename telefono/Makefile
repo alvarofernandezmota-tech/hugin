@@ -109,7 +109,7 @@ olvidar: $(PY)  ## borrar la ficha de un numero: make olvidar TELEFONO=+34600...
 	$(PY) -m hugin.mente.memoria --olvidar "$(TELEFONO)"
 
 funnel: $(PY)  ## publicar SOLO el webhook del telefono en internet
-	@$(PY) -c "import telefonia, sys; c = telefonia.configuracion(); \
+	@$(PY) -c "from canal import telefonia; import sys; c = telefonia.configuracion(); \
 	  sys.exit(0 if c and telefonia.proveedores(c) else 1)" || \
 	  { echo "❌ sin nada valido en .env con que comprobar la firma no hay webhook que publicar."; \
 	    echo "   Publicar esto ahora solo abriria la demo a internet. Mira «make revisar»."; \

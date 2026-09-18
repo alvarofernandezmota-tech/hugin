@@ -412,6 +412,116 @@ class TestElEnrutadoDeGroqYGoogle(CasoCerebro):
         self.assertEqual(llamado.get("cual"), "google")
 
 
+class TestModoAuto(CasoCerebro):
+    """`GJALLARHORN_LLM=auto`: nube primero, Ollama si falla."""
+
+    def setUp(self):
+        super().setUp()
+        self.antes = {k: os.environ.get(k) for k in
+                      ("GJALLARHORN_LLM", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "GOOGLE_API_KEY")}
+        self.addCleanup(self.devolver)
+        for clave in self.antes:
+            os.environ.pop(clave, None)
+        os.environ["GJALLARHORN_LLM"] = "auto"
+
+    def devolver(self):
+        for clave, valor in self.antes.items():
+            if valor is None:
+                os.environ.pop(clave, None)
+            else:
+                os.environ[clave] = valor
+
+    def _respuesta_otro(self):
+        return {"intencion": "otro", "servicio": None, "cuando": None,
+                "nombre": None, "franja": None, "confianza": "alta"}
+
+    def test_proveedor_es_auto(self):
+        self.assertEqual(cerebro.proveedor(), "auto")
+        self.assertTrue(cerebro.configurado())
+
+    def test_con_clave_de_claude_prueba_claude_primero(self):
+        llamado = []
+
+        def falso_claude(frase, servicios, turnos=None, sabido="", esperando=None):
+            llamado.append("anthropic")
+            return self._respuesta_otro()
+
+        def explota(frase, servicios, **_):
+            raise AssertionError("no debería haberse llamado a este motor")
+
+        os.environ["ANTHROPIC_API_KEY"] = "sk-ant-de-mentira"
+        with mock.patch.object(cerebro, "_preguntar_claude", falso_claude), \
+             mock.patch.object(cerebro, "_preguntar_ollama", explota):
+            e = cerebro.entender("cualquier cosa", base=self.base)
+        self.assertEqual(llamado, ["anthropic"])
+        self.assertEqual(e.intencion, "otro")
+
+    def test_si_la_nube_falla_cae_a_ollama(self):
+        llamado = []
+
+        def rota(frase, servicios, turnos=None, sabido="", esperando=None):
+            raise ConnectionError("sin red")
+
+        def falso_ollama(frase, servicios, turnos=None, sabido="", esperando=None):
+            llamado.append("ollama")
+            return self._respuesta_otro()
+
+        os.environ["ANTHROPIC_API_KEY"] = "sk-ant-de-mentira"
+        with mock.patch.object(cerebro, "_preguntar_claude", rota), \
+             mock.patch.object(cerebro, "_preguntar_ollama", falso_ollama):
+            e = cerebro.entender("cualquier cosa", base=self.base)
+        self.assertEqual(llamado, ["ollama"])
+        self.assertEqual(e.intencion, "otro")
+
+    def test_sin_ninguna_clave_de_nube_va_directo_a_ollama(self):
+        llamado = []
+
+        def explota(frase, servicios, **_):
+            raise AssertionError("no debería haberse llamado a este motor")
+
+        def falso_ollama(frase, servicios, turnos=None, sabido="", esperando=None):
+            llamado.append("ollama")
+            return self._respuesta_otro()
+
+        with mock.patch.object(cerebro, "_preguntar_claude", explota), \
+             mock.patch.object(cerebro, "_preguntar_groq", explota), \
+             mock.patch.object(cerebro, "_preguntar_google", explota), \
+             mock.patch.object(cerebro, "_preguntar_ollama", falso_ollama):
+            e = cerebro.entender("cualquier cosa", base=self.base)
+        self.assertEqual(llamado, ["ollama"])
+        self.assertEqual(e.intencion, "otro")
+
+    def test_si_todo_falla_no_hay_modelo_pero_la_llamada_sigue(self):
+        def rota(frase, servicios, turnos=None, sabido="", esperando=None):
+            raise ConnectionError("sin red")
+
+        os.environ["ANTHROPIC_API_KEY"] = "sk-ant-de-mentira"
+        with mock.patch.object(cerebro, "_preguntar_claude", rota), \
+             mock.patch.object(cerebro, "_preguntar_ollama", rota):
+            self.assertIsNone(cerebro.entender("cualquier cosa", base=self.base))
+
+    def test_el_intento_de_ollama_usa_el_modelo_local(self):
+        # `modelo()` tiene que responder al motor que se está intentando, no
+        # quedarse en "auto": sin esto, el intento a Ollama pediría el modelo
+        # de Claude.
+        vistos = []
+
+        def rota(frase, servicios, turnos=None, sabido="", esperando=None):
+            raise ConnectionError("sin red")
+
+        def falso_ollama(frase, servicios, turnos=None, sabido="", esperando=None):
+            vistos.append(cerebro.modelo())
+            return self._respuesta_otro()
+
+        os.environ["ANTHROPIC_API_KEY"] = "sk-ant-de-mentira"
+        with mock.patch.object(cerebro, "_preguntar_claude", rota), \
+             mock.patch.object(cerebro, "_preguntar_ollama", falso_ollama):
+            cerebro.entender("cualquier cosa", base=self.base)
+        self.assertEqual(vistos, [cerebro.MODELO_LOCAL_POR_DEFECTO])
+        # Y tras el intento, GJALLARHORN_LLM vuelve a "auto".
+        self.assertEqual(os.environ["GJALLARHORN_LLM"], "auto")
+
+
 class TestElModeloLocal(CasoCerebro):
     """Ollama: por HTTP a esta misma máquina, con el mismo esquema."""
 

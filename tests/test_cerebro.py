@@ -279,7 +279,8 @@ class TestElMotor(unittest.TestCase):
 
     def setUp(self):
         self.antes = {k: os.environ.get(k) for k in
-                      ("GJALLARHORN_LLM", "ANTHROPIC_API_KEY", "GJALLARHORN_LLM_MODELO")}
+                      ("GJALLARHORN_LLM", "ANTHROPIC_API_KEY", "GJALLARHORN_LLM_MODELO",
+                       "GROQ_API_KEY", "GOOGLE_API_KEY")}
         self.addCleanup(self.devolver)
         for clave in self.antes:
             os.environ.pop(clave, None)
@@ -319,6 +320,92 @@ class TestElMotor(unittest.TestCase):
         os.environ["GJALLARHORN_LLM"] = "ollama"
         os.environ["GJALLARHORN_LLM_MODELO"] = "gemma3:4b"
         self.assertEqual(cerebro.modelo(), "gemma3:4b")
+
+    def test_groq_necesita_clave(self):
+        os.environ["GJALLARHORN_LLM"] = "groq"
+        self.assertEqual(cerebro.proveedor(), "")
+        os.environ["GROQ_API_KEY"] = "gsk-de-mentira"
+        self.assertEqual(cerebro.proveedor(), "groq")
+        self.assertEqual(cerebro.modelo(), cerebro.MODELO_GROQ_POR_DEFECTO)
+
+    def test_google_necesita_clave_y_gemini_es_sinonimo(self):
+        os.environ["GJALLARHORN_LLM"] = "google"
+        self.assertEqual(cerebro.proveedor(), "")
+        os.environ["GOOGLE_API_KEY"] = "AI-de-mentira"
+        self.assertEqual(cerebro.proveedor(), "google")
+        self.assertEqual(cerebro.modelo(), cerebro.MODELO_GOOGLE_POR_DEFECTO)
+        os.environ["GJALLARHORN_LLM"] = "gemini"
+        self.assertEqual(cerebro.proveedor(), "google")
+
+
+class TestElEnrutadoDeGroqYGoogle(CasoCerebro):
+    """`entender()` sin `preguntar` tiene que llamar al motor que toque,
+    igual que ya se comprueba para Ollama en TestElMotor.
+
+    Pop selectivo y no `mock.patch.dict(..., clear=True)` a propósito:
+    `proveedor()` aquí llama a `ajustes.leer()` (a diferencia de
+    `hugin.personal.entender.proveedor()`, que no lo hace), y limpiar el
+    entorno entero se llevaría por delante la variable que apunta al `.env`
+    vacío de pruebas (ver `tests/entorno.py`), dejando que se busque un
+    `.env` real de donde se corra la suite.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.antes = {k: os.environ.get(k) for k in
+                      ("GJALLARHORN_LLM", "GROQ_API_KEY", "GOOGLE_API_KEY")}
+        self.addCleanup(self.devolver)
+        for clave in self.antes:
+            os.environ.pop(clave, None)
+
+    def devolver(self):
+        for clave, valor in self.antes.items():
+            if valor is None:
+                os.environ.pop(clave, None)
+            else:
+                os.environ[clave] = valor
+
+    def _respuesta_otro(self):
+        return {"intencion": "otro", "servicio": None, "cuando": None,
+                "nombre": None, "franja": None, "confianza": "alta"}
+
+    def test_con_groq_elegido_se_llama_a_groq(self):
+        llamado = {}
+
+        def falso_groq(frase, servicios, turnos=None, sabido="", esperando=None):
+            llamado["cual"] = "groq"
+            return self._respuesta_otro()
+
+        def explota(frase, servicios, **_):
+            raise AssertionError("no debería haberse llamado a este motor")
+
+        os.environ["GJALLARHORN_LLM"] = "groq"
+        os.environ["GROQ_API_KEY"] = "gsk-de-mentira"
+        with mock.patch.object(cerebro, "_preguntar_groq", falso_groq), \
+             mock.patch.object(cerebro, "_preguntar_claude", explota), \
+             mock.patch.object(cerebro, "_preguntar_ollama", explota), \
+             mock.patch.object(cerebro, "_preguntar_google", explota):
+            cerebro.entender("cualquier cosa", base=self.base)
+        self.assertEqual(llamado.get("cual"), "groq")
+
+    def test_con_google_elegido_se_llama_a_google(self):
+        llamado = {}
+
+        def falso_google(frase, servicios, turnos=None, sabido="", esperando=None):
+            llamado["cual"] = "google"
+            return self._respuesta_otro()
+
+        def explota(frase, servicios, **_):
+            raise AssertionError("no debería haberse llamado a este motor")
+
+        os.environ["GJALLARHORN_LLM"] = "google"
+        os.environ["GOOGLE_API_KEY"] = "AI-de-mentira"
+        with mock.patch.object(cerebro, "_preguntar_google", falso_google), \
+             mock.patch.object(cerebro, "_preguntar_claude", explota), \
+             mock.patch.object(cerebro, "_preguntar_ollama", explota), \
+             mock.patch.object(cerebro, "_preguntar_groq", explota):
+            cerebro.entender("cualquier cosa", base=self.base)
+        self.assertEqual(llamado.get("cual"), "google")
 
 
 class TestElModeloLocal(CasoCerebro):

@@ -36,22 +36,29 @@ Tres cosas, y las tres importan para acertar:
    Así «lo del alisado» encuentra el tratamiento de keratina si el dueño lo
    escribió en algún `.md`, en vez de que el modelo se lo imagine.
 
-## Apagado por defecto, y dos formas de encenderlo
+## Apagado por defecto, y cuatro formas de encenderlo
 
-Sin nada configurado, las reglas solas, como hasta ahora. Y hay dos motores,
-que no son lo mismo para quien lleva el negocio:
+Sin nada configurado, las reglas solas, como hasta ahora. Y hay cuatro
+motores, que no son lo mismo para quien lleva el negocio:
 
-    GJALLARHORN_LLM=anthropic   + ANTHROPIC_API_KEY   Claude, en la nube
-    GJALLARHORN_LLM=ollama                            un modelo en esta máquina
+    GJALLARHORN_LLM=anthropic   + ANTHROPIC_API_KEY   Claude, en la nube (de pago)
+    GJALLARHORN_LLM=groq        + GROQ_API_KEY        Groq, en la nube (gratis, con límite)
+    GJALLARHORN_LLM=google      + GOOGLE_API_KEY       Gemini, en la nube (gratis, con límite)
+    GJALLARHORN_LLM=ollama                             un modelo en esta máquina
 
-Con Claude acierta más y **el texto de lo que dijo el cliente sale de casa**
-hacia la API; el audio no, el texto sí. Con Ollama no sale nada de la
-máquina: el modelo corre en el mismo ordenador que atiende el teléfono, y a
-cambio acierta menos y tarda más, lo que en un teléfono se nota.
+Con Claude/Groq/Google acierta más y **el texto de lo que dijo el cliente
+sale de casa** hacia la API; el audio no, el texto sí. Con Ollama no sale
+nada de la máquina: el modelo corre en el mismo ordenador que atiende el
+teléfono, y a cambio acierta menos y tarda más, lo que en un teléfono se
+nota. Entre las tres de la nube: Claude es de pago y sin letra pequeña
+sobre entrenar con lo que se le manda; Groq y Google tienen nivel gratuito
+con límite de peticiones, y conviene mirar los términos de cada uno antes
+de mandarles lo que dice un cliente — más aún si el negocio trata datos
+sensibles.
 
-Cuál de los dos es cosa del negocio, no de este fichero, y por eso no viene
-puesto ninguno. Sin `GJALLARHORN_LLM`, se usa Claude si hay clave y nada si
-no la hay, que es como estaba antes.
+Cuál de los cuatro es cosa del negocio, no de este fichero, y por eso no
+viene puesto ninguno. Sin `GJALLARHORN_LLM`, se usa Claude si hay clave y
+nada si no la hay, que es como estaba antes.
 
 ## Tres frenos
 
@@ -122,10 +129,13 @@ class Entendido:
 
 
 def proveedor() -> str:
-    """Qué motor se usa: «anthropic», «ollama» o «» si no hay ninguno.
+    """Qué motor se usa: «anthropic», «ollama», «groq», «google» o «» si no hay ninguno.
 
     Sin `GJALLARHORN_LLM`, lo de siempre: Claude si hay clave y nada si no.
-    Así, quien ya lo tenía funcionando no tiene que tocar nada.
+    Así, quien ya lo tenía funcionando no tiene que tocar nada. Groq y
+    Google (Gemini) son gratuitos con límite de peticiones, cada uno con su
+    propia clave (`GROQ_API_KEY`, `GOOGLE_API_KEY`) — elegir uno sin su
+    clave puesta no enciende nada, como ya pasaba con Claude.
     """
     from hugin.guardado import ajustes
     ajustes.leer()
@@ -134,6 +144,10 @@ def proveedor() -> str:
         return ""
     if elegido in ("ollama", "local"):
         return "ollama"
+    if elegido in ("groq",):
+        return "groq" if os.environ.get("GROQ_API_KEY", "").strip() else ""
+    if elegido in ("google", "gemini"):
+        return "google" if os.environ.get("GOOGLE_API_KEY", "").strip() else ""
     if elegido in ("anthropic", "claude"):
         return "anthropic" if os.environ.get("ANTHROPIC_API_KEY", "").strip() else ""
     return "anthropic" if os.environ.get("ANTHROPIC_API_KEY", "").strip() else ""
@@ -144,11 +158,19 @@ def configurado() -> bool:
     return bool(proveedor())
 
 
+MODELO_GROQ_POR_DEFECTO = "llama-3.3-70b-versatile"
+MODELO_GOOGLE_POR_DEFECTO = "gemini-2.5-flash"
+
+
 def modelo() -> str:
     propio = os.environ.get("GJALLARHORN_LLM_MODELO", "").strip()
     if propio:
         return propio
-    return MODELO_LOCAL_POR_DEFECTO if proveedor() == "ollama" else MODELO_POR_DEFECTO
+    return {
+        "ollama": MODELO_LOCAL_POR_DEFECTO,
+        "groq": MODELO_GROQ_POR_DEFECTO,
+        "google": MODELO_GOOGLE_POR_DEFECTO,
+    }.get(proveedor(), MODELO_POR_DEFECTO)
 
 
 def ollama() -> str:
@@ -293,6 +315,74 @@ def _preguntar_ollama(frase: str, servicios: list[str], turnos=None,
     return json.loads(contestado["message"]["content"])
 
 
+def _preguntar_groq(frase: str, servicios: list[str], turnos=None,
+                    sabido: str = "", esperando: str | None = None) -> dict:
+    """Lo mismo, contra Groq. API compatible con la de OpenAI, sin cliente.
+
+    `json_object`, no `json_schema` con `strict`: ese modo estricto solo
+    está en "modelos seleccionados" según la propia documentación de Groq,
+    y no hay garantía de que el de `modelo()` sea uno. La palabra "JSON"
+    tiene que aparecer en algún mensaje para que la API acepte el modo —ya
+    está, en las instrucciones ("Devuelve SOLO el JSON pedido").
+    """
+    import urllib.request
+
+    clave = os.environ.get("GROQ_API_KEY", "").strip()
+    cuerpo = json.dumps({
+        "model": modelo(),
+        "messages": [{"role": "system", "content": _instrucciones(servicios, sabido, esperando)},
+                     *_mensajes(frase, turnos)],
+        "response_format": {"type": "json_object"},
+        "temperature": 0,
+    }).encode("utf-8")
+    peticion = urllib.request.Request(
+        "https://api.groq.com/openai/v1/chat/completions", data=cuerpo,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {clave}"},
+        method="POST")
+    with urllib.request.urlopen(peticion, timeout=TOPE_SEGUNDOS) as respuesta:
+        contestado = json.loads(respuesta.read().decode("utf-8"))
+    return json.loads(contestado["choices"][0]["message"]["content"])
+
+
+def _preguntar_google(frase: str, servicios: list[str], turnos=None,
+                      sabido: str = "", esperando: str | None = None) -> dict:
+    """Lo mismo, contra la API de Google AI Studio (Gemini).
+
+    Sin historial nativo de turnos en `contents` (a diferencia de Claude/
+    Groq, que aceptan roles user/assistant alternados): se simplifica
+    metiendo los turnos anteriores como parte del texto del sistema, porque
+    `_mensajes()` está pensado para el formato OpenAI/Anthropic y rehacerlo
+    para el de Gemini sería duplicar la lógica de turnos en dos formatos
+    para ganar poco — aquí solo hacen falta unos pocos turnos de contexto
+    (`TURNOS_DE_CONTEXTO`), no una conversación larga.
+    """
+    import urllib.request
+
+    clave = os.environ.get("GOOGLE_API_KEY", "").strip()
+    instrucciones = _instrucciones(servicios, sabido, esperando)
+    historial = "\n".join(
+        f"Cliente: {dicho}\nRecepcionista: {contestado}"
+        for dicho, contestado in (turnos or [])[-TURNOS_DE_CONTEXTO:])
+    if historial:
+        instrucciones += f"\n\nLo que se ha dicho antes en esta llamada:\n{historial}"
+    cuerpo = json.dumps({
+        "system_instruction": {"parts": [{"text": instrucciones}]},
+        "contents": [{"role": "user", "parts": [{"text": frase}]}],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": _esquema(servicios),
+            "temperature": 0,
+        },
+    }).encode("utf-8")
+    peticion = urllib.request.Request(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{modelo()}:generateContent?key={clave}",
+        data=cuerpo, headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(peticion, timeout=TOPE_SEGUNDOS) as respuesta:
+        contestado = json.loads(respuesta.read().decode("utf-8"))
+    texto = contestado["candidates"][0]["content"]["parts"][0]["text"]
+    return json.loads(texto)
+
+
 def _llamar(preguntar, frase, servicios, turnos, sabido, esperando) -> dict:
     """Llama a `preguntar` como sepa: con contexto, o solo con la frase.
 
@@ -324,7 +414,11 @@ def entender(frase: str, base: Path | None = None, preguntar=None,
         cual = proveedor()
         if not cual:
             return None
-        preguntar = _preguntar_ollama if cual == "ollama" else _preguntar_claude
+        preguntar = {
+            "ollama": _preguntar_ollama,
+            "groq": _preguntar_groq,
+            "google": _preguntar_google,
+        }.get(cual, _preguntar_claude)
 
     servicios = [s["servicio"] for s in conocimiento.tarifas(base)]
     sabido = rag.contexto(frase, base, tope=2, limite=600)
@@ -379,15 +473,17 @@ def main() -> int:
 
     if not configurado():
         print("El LLM está apagado: las reglas van solas. Para encenderlo, en .env:")
-        print("  GJALLARHORN_LLM=anthropic  + ANTHROPIC_API_KEY=…   (Claude, en la nube)")
+        print("  GJALLARHORN_LLM=anthropic  + ANTHROPIC_API_KEY=…   (Claude, en la nube, de pago)")
+        print("  GJALLARHORN_LLM=groq       + GROQ_API_KEY=…        (Groq, en la nube, gratis con límite)")
+        print("  GJALLARHORN_LLM=google     + GOOGLE_API_KEY=…      (Gemini, en la nube, gratis con límite)")
         print("  GJALLARHORN_LLM=ollama                             (un modelo local)")
         print()
-        print("Con Claude acierta más y el TEXTO de lo que dice el cliente sale de")
-        print("casa hacia la API (el audio no). Con Ollama no sale nada de la máquina,")
-        print("y a cambio acierta menos y tarda más. Es decisión del negocio.")
+        print("Con Claude/Groq/Google el TEXTO de lo que dice el cliente sale de casa")
+        print("hacia la API (el audio no). Con Ollama no sale nada de la máquina, y a")
+        print("cambio acierta menos y tarda más. Es decisión del negocio.")
         return 1
     n = negocios.cargar(args.negocio)
-    donde = "en la nube" if proveedor() == "anthropic" else f"en local ({ollama()})"
+    donde = f"en local ({ollama()})" if proveedor() == "ollama" else "en la nube"
     print(f"modelo {modelo()} {donde} · «{args.frase}»")
     entendido = entender(args.frase, n.conocimiento)
     if entendido is None:

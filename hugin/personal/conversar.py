@@ -212,6 +212,48 @@ def _preguntar_ollama(pregunta: str, contexto: str) -> str:
     return (contestado["message"]["content"] or "").strip()
 
 
+def _preguntar_groq(pregunta: str, contexto: str) -> str:
+    """Lo mismo, contra Groq. API compatible con la de OpenAI, sin cliente."""
+    import json
+    import os
+    import urllib.request
+
+    clave = os.environ.get("GROQ_API_KEY", "").strip()
+    cuerpo = json.dumps({
+        "model": modelo(),
+        "messages": [{"role": "system", "content": INSTRUCCIONES},
+                     {"role": "user",
+                      "content": f"{contexto}\n\n---\n\nPregunta: {pregunta}"}],
+    }).encode("utf-8")
+    peticion = urllib.request.Request(
+        "https://api.groq.com/openai/v1/chat/completions", data=cuerpo,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {clave}"},
+        method="POST")
+    with urllib.request.urlopen(peticion, timeout=TOPE_SEGUNDOS) as respuesta:
+        contestado = json.loads(respuesta.read().decode("utf-8"))
+    return contestado["choices"][0]["message"]["content"].strip()
+
+
+def _preguntar_google(pregunta: str, contexto: str) -> str:
+    """Lo mismo, contra la API de Google AI Studio (Gemini)."""
+    import json
+    import os
+    import urllib.request
+
+    clave = os.environ.get("GOOGLE_API_KEY", "").strip()
+    cuerpo = json.dumps({
+        "system_instruction": {"parts": [{"text": INSTRUCCIONES}]},
+        "contents": [{"role": "user", "parts": [
+            {"text": f"{contexto}\n\n---\n\nPregunta: {pregunta}"}]}],
+    }).encode("utf-8")
+    peticion = urllib.request.Request(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{modelo()}:generateContent?key={clave}",
+        data=cuerpo, headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(peticion, timeout=TOPE_SEGUNDOS) as respuesta:
+        contestado = json.loads(respuesta.read().decode("utf-8"))
+    return contestado["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+
 def responder(pregunta: str, preguntar=None, contexto=None, inq=None) -> str | None:
     """La respuesta a `pregunta`, o `None` si aquí no hay nada que hacer.
 
@@ -226,7 +268,11 @@ def responder(pregunta: str, preguntar=None, contexto=None, inq=None) -> str | N
         cual = entender.proveedor()
         if not cual:
             return None
-        preguntar = _preguntar_ollama if cual == "ollama" else _preguntar_claude
+        preguntar = {
+            "ollama": _preguntar_ollama,
+            "groq": _preguntar_groq,
+            "google": _preguntar_google,
+        }.get(cual, _preguntar_claude)
     try:
         respuesta = preguntar(pregunta, datos(inq) if contexto is None else contexto)
     except Exception:

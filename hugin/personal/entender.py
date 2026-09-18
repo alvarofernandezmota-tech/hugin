@@ -17,16 +17,22 @@ diario de verdad— sigue yendo al diario. Este módulo no puede hacer que se
 pierda nada: en el peor caso, deja de reconocer una tarea y la escribe en
 el diario, que es lo que ya pasaba antes de que existiera.
 
-## Dos motores, el mismo patrón que `hugin/mente/cerebro.py`
+## Cuatro motores, el mismo patrón que `hugin/mente/cerebro.py`
 
-    MIDGAROR_LLM=anthropic   + ANTHROPIC_API_KEY   Claude, en la nube
+    MIDGAROR_LLM=anthropic   + ANTHROPIC_API_KEY   Claude, en la nube (de pago)
+    MIDGAROR_LLM=groq        + GROQ_API_KEY        Groq, en la nube (gratis, con límite)
+    MIDGAROR_LLM=google      + GOOGLE_API_KEY       Gemini, en la nube (gratis, con límite)
     MIDGAROR_LLM=ollama                            un modelo en esta máquina
 
 Mismos nombres de variable que en producción (Madre ya los tiene puestos en
 su `.env`): el porte no le cambia a nadie la configuración. Con Claude
-acierta más y el texto sale de casa hacia la API; con Ollama no sale nada,
-el modelo corre en la misma máquina que el bot, y a cambio acierta menos y
-tarda más. Sin `MIDGAROR_LLM`, Claude si hay clave y nada si no la hay.
+acierta más y el texto sale de casa hacia la API; con Groq/Google sale
+también, pero sin coste mientras no se pase el límite gratuito de
+peticiones —y con la letra pequeña de cada uno sobre qué hace con lo que le
+mandas, que en un diario personal importa—; con Ollama no sale nada, el
+modelo corre en la misma máquina que el bot, y a cambio acierta menos y
+tarda más. Sin `MIDGAROR_LLM`, Claude si hay clave y nada si no la hay:
+elegir uno de los otros tres es siempre explícito, nunca el default.
 
 ## La regla de la casa, la misma que en `mente/cerebro.py`
 
@@ -85,6 +91,15 @@ MODELO_POR_DEFECTO = "claude-opus-5"
 # en lo que aquí más importa: el campo `confianza`—. En Q4_K_M pesa ~2.5 GB,
 # con margen real de sobra en 6 GB. Se cambia con MIDGAROR_LLM_MODELO.
 MODELO_LOCAL_POR_DEFECTO = "qwen3:4b-instruct-2507"
+# Rápido, gratis con límite de peticiones, JSON mode nativo. La familia
+# 3.3 corre a ~300 tok/s en la infraestructura de Groq (LPU, no GPU) — muy
+# por encima del tope de 4s/20s de aquí. Se cambia con MIDGAROR_LLM_MODELO.
+MODELO_GROQ_POR_DEFECTO = "llama-3.3-70b-versatile"
+# Gratis con límite de peticiones, buen soporte de castellano y JSON Schema
+# nativo (`responseSchema`). Sin el "-preview" de las últimas versiones a
+# propósito: una entrada en producción no debería depender de un modelo que
+# puede cambiar o desaparecer sin aviso.
+MODELO_GOOGLE_POR_DEFECTO = "gemini-2.5-flash"
 OLLAMA_POR_DEFECTO = "http://127.0.0.1:11434"
 TOPE_SEGUNDOS = 4.0
 # Con Ollama hace falta más margen, y no por descuido: en hugin/mente/
@@ -197,17 +212,26 @@ def _reglas(frase: str) -> Entendido | None:
 
 
 def proveedor() -> str:
-    """Qué motor se usa: «anthropic», «ollama» o «» si no hay ninguno.
+    """Qué motor se usa: «anthropic», «ollama», «groq», «google» o «» si no hay ninguno.
 
     Sin `MIDGAROR_LLM`, lo de siempre: Claude si hay clave y nada si no.
     Mismo criterio que `hugin/mente/cerebro.py`, misma variable con otro
-    prefijo.
+    prefijo. Groq y Google (Gemini) son gratuitos con límite de peticiones,
+    y cada uno necesita su propia clave (`GROQ_API_KEY`, `GOOGLE_API_KEY`)
+    para contar como configurado — igual que Claude con `ANTHROPIC_API_KEY`.
+    Elegir uno sin su clave puesta no enciende nada, igual que pasaba ya con
+    Claude: nunca un `MIDGAROR_LLM` mal puesto tira el bot, cae al camino de
+    siempre (diario).
     """
     elegido = os.environ.get("MIDGAROR_LLM", "").strip().lower()
     if elegido in ("no", "off", "ninguno", "0"):
         return ""
     if elegido in ("ollama", "local"):
         return "ollama"
+    if elegido in ("groq",):
+        return "groq" if os.environ.get("GROQ_API_KEY", "").strip() else ""
+    if elegido in ("google", "gemini"):
+        return "google" if os.environ.get("GOOGLE_API_KEY", "").strip() else ""
     if elegido in ("anthropic", "claude"):
         return "anthropic" if os.environ.get("ANTHROPIC_API_KEY", "").strip() else ""
     return "anthropic" if os.environ.get("ANTHROPIC_API_KEY", "").strip() else ""
@@ -222,7 +246,11 @@ def modelo() -> str:
     propio = os.environ.get("MIDGAROR_LLM_MODELO", "").strip()
     if propio:
         return propio
-    return MODELO_LOCAL_POR_DEFECTO if proveedor() == "ollama" else MODELO_POR_DEFECTO
+    return {
+        "ollama": MODELO_LOCAL_POR_DEFECTO,
+        "groq": MODELO_GROQ_POR_DEFECTO,
+        "google": MODELO_GOOGLE_POR_DEFECTO,
+    }.get(proveedor(), MODELO_POR_DEFECTO)
 
 
 def ollama() -> str:
@@ -346,6 +374,67 @@ def _preguntar_ollama(frase: str) -> dict:
     return json.loads(contestado["message"]["content"])
 
 
+def _preguntar_groq(frase: str) -> dict:
+    """Lo mismo, contra Groq. API compatible con la de OpenAI, sin cliente.
+
+    `response_format: json_object` en vez de `json_schema` con `strict`:
+    ese modo estricto solo está en "modelos seleccionados" según la propia
+    documentación de Groq, y no hay garantía de que el de `modelo()` sea
+    uno de ellos. `json_object` sí está en todos y ya obliga a un JSON
+    válido; que tenga los ocho campos con la forma que toca lo comprueba
+    `entender()` después, igual que con cualquier otro motor. La palabra
+    "JSON" tiene que aparecer en algún mensaje para que la API la acepte —
+    ya está, en la última frase de `INSTRUCCIONES`.
+    """
+    import urllib.request
+
+    clave = os.environ.get("GROQ_API_KEY", "").strip()
+    cuerpo = json.dumps({
+        "model": modelo(),
+        "messages": [{"role": "system", "content": INSTRUCCIONES},
+                     {"role": "user", "content": frase}],
+        "response_format": {"type": "json_object"},
+        "temperature": 0,
+    }).encode("utf-8")
+    peticion = urllib.request.Request(
+        "https://api.groq.com/openai/v1/chat/completions", data=cuerpo,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {clave}"},
+        method="POST")
+    with urllib.request.urlopen(peticion, timeout=TOPE_SEGUNDOS) as respuesta:
+        contestado = json.loads(respuesta.read().decode("utf-8"))
+    return json.loads(contestado["choices"][0]["message"]["content"])
+
+
+def _preguntar_google(frase: str) -> dict:
+    """Lo mismo, contra la API de Google AI Studio (Gemini).
+
+    `responseSchema` con el ESQUEMA tal cual: la documentación de Google
+    dice que sus modelos ya aceptan JSON Schema estándar, no un dialecto
+    propio. Si algún día dejara de ser así, esto lo diría fallando —el
+    `except` de `entender()` se lo traga igual que cualquier otro fallo de
+    red o de JSON, cae al diario, nunca revienta.
+    """
+    import urllib.request
+
+    clave = os.environ.get("GOOGLE_API_KEY", "").strip()
+    cuerpo = json.dumps({
+        "system_instruction": {"parts": [{"text": INSTRUCCIONES}]},
+        "contents": [{"role": "user", "parts": [{"text": frase}]}],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": ESQUEMA,
+            "temperature": 0,
+        },
+    }).encode("utf-8")
+    peticion = urllib.request.Request(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{modelo()}:generateContent?key={clave}",
+        data=cuerpo, headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(peticion, timeout=TOPE_SEGUNDOS) as respuesta:
+        contestado = json.loads(respuesta.read().decode("utf-8"))
+    texto = contestado["candidates"][0]["content"]["parts"][0]["text"]
+    return json.loads(texto)
+
+
 def entender(frase: str, preguntar=None) -> Entendido | None:
     """Clasifica `frase`, o `None` si hay que mandarla al diario como siempre.
 
@@ -373,7 +462,11 @@ def entender(frase: str, preguntar=None) -> Entendido | None:
         cual = proveedor()
         if not cual:
             return None
-        preguntar = _preguntar_ollama if cual == "ollama" else _preguntar_claude
+        preguntar = {
+            "ollama": _preguntar_ollama,
+            "groq": _preguntar_groq,
+            "google": _preguntar_google,
+        }.get(cual, _preguntar_claude)
     try:
         datos = preguntar(frase)
         intencion = datos.get("intencion")

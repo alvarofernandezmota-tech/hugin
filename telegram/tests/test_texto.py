@@ -140,6 +140,37 @@ class TestCaeAlDiarioComoAntes(CasoBot):
         self.assertIn("Apuntado en el diario", respuesta)
 
 
+class TestUnSaludoNoEsDiario(CasoBot):
+    """El fallo real de Madre (2026-09-18): un simple «hola» se escribía
+    como entrada de diario. Este es el nivel de arriba del que prueba
+    `tests/test_entender_personal.py::TestElSaludoNoEsDiario` — aquí se
+    comprueba que el handler de verdad usa ese chequeo, no solo que la
+    función existe.
+    """
+
+    def test_hola_no_se_apunta_en_el_diario(self):
+        respuesta = self.texto_libre("hola")
+        self.assertIn("Hola", respuesta)
+        self.assertEqual(self.seccion(HOY), "")
+
+    def test_gracias_tampoco(self):
+        self.texto_libre("gracias")
+        self.assertEqual(self.seccion(HOY), "")
+
+    def test_ni_siquiera_llega_a_preguntarle_al_motor(self):
+        # es_saludo() va ANTES de entender(): si algún día alguien mueve el
+        # orden, esto lo dice explotando en vez de dejarlo pasar en verde.
+        def explota(frase):
+            raise AssertionError("no debería preguntarse nada para un saludo")
+        texto._preguntar = explota
+        self.texto_libre("hola")
+
+    def test_un_saludo_con_mas_texto_si_es_diario(self):
+        # El caso que justo hay que evitar: no vale con "empieza por hola".
+        self.texto_libre("hola, hoy ha sido un día raro")
+        self.assertIn("hola, hoy ha sido un día raro", self.seccion(HOY))
+
+
 class TestUnaPreguntaSeContesta(CasoBot):
     """La rama que NO escribe: lee los resúmenes y contesta en prosa.
 

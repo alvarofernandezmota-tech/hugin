@@ -34,15 +34,11 @@ from telegram.ext import ContextTypes
 from handlers.apunte import cuanto
 from hugin import apuntes as registro
 from hugin.guardado.sincronizar import sincronizar
-from hugin.personal import citas, habitos, tareas
+from hugin.personal import citas, conversar, entender, habitos, tareas
 from hugin.personal import fechas as fechas_personal
 from hugin.personal.diario import organizar_texto
 from utils.inquilino import actual as inquilino_actual
-from utils.midgaror import modulo
 from utils.respuestas import breve, dia, responder, responder_si_puedo
-
-conversar = modulo("conversar")
-entender = modulo("entender")
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +89,9 @@ async def _enrutar(update: Update, e) -> None:
         # `to_thread` porque `responder()` llama a la API y puede tardar
         # segundos: dentro de la corrutina congelaría el bot entero, igual
         # que pasaba con `sincronizar`.
+        inq = inquilino_actual()
         respuesta = await asyncio.to_thread(
-            conversar.responder, e.texto or "", _responder_pregunta)
+            conversar.responder, e.texto or "", _responder_pregunta, None, inq)
         if respuesta is None:
             # Sin clave, red caída o respuesta vacía. Al diario, como todo.
             raise ValueError("no se pudo contestar la pregunta")
@@ -164,6 +161,16 @@ async def procesar(update: Update, texto: str) -> None:
     filtra lo que empieza por «/» —una transcripción nunca puede empezar por
     ahí de casualidad, así que `mensaje_voz` no repite ese aviso.
     """
+    # Un saludo suelto («hola», «gracias», «vale») no es una entrada de
+    # diario. Antes de esto, caía aquí abajo igual que cualquier otra cosa
+    # sin clasificar y se escribía tal cual — comprobado en Madre el
+    # 2026-09-18. Va ANTES de entender(): ni hace falta LLM para saberlo, ni
+    # tiene sentido pagar la llamada por algo que un regex ya resuelve.
+    if entender.es_saludo(texto):
+        await responder(update, "👋 ¡Hola! No he apuntado nada — dime una tarea, "
+                                "un hábito, una cita, o algo para el diario.")
+        return
+
     # to_thread por el mismo motivo que en la rama "pregunta", más abajo:
     # con MIDGAROR_LLM=ollama la llamada corre en la CPU de Madre y puede
     # tardar varios segundos (TOPE_SEGUNDOS_OLLAMA en entender.py). Sin

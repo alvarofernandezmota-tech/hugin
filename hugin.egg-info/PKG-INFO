@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: hugin
+Version: 0.1.0
+Summary: El cerebro de un bot que atiende a gente, sin saber por donde le hablan
+Requires-Python: >=3.11
+Provides-Extra: llm
+Requires-Dist: anthropic==1.6.0; extra == "llm"
+Provides-Extra: dev
+Requires-Dist: ruff==0.15.8; extra == "dev"
+Provides-Extra: test
+Requires-Dist: python-telegram-bot==22.8; extra == "test"
+Requires-Dist: python-dotenv==1.2.3; extra == "test"

@@ -9,17 +9,15 @@ Y a «¿a qué hora?» mucha gente contesta «cuando podáis»: se le dicen los
 huecos, no se le repite la pregunta.
 """
 
-import sys
 import tempfile
 import unittest
 from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-# La raiz del repo **es** el paquete `hugin`, asi que lo que tiene que
-# estar en el sys.path es la carpeta que lo contiene.
+# Nada de sys.path: el paquete se instala en editable (`make instalar`),
+# asi que `import hugin` funciona sin trucos (ADR-024).
 RAIZ = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ.parent))
 
 import entorno  # noqa: E402,F401
 

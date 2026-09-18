@@ -7,12 +7,12 @@ mete aqui un import de un canal porque «total, es una linea».
 
 import ast
 import os
-import sys
 import unittest
 from pathlib import Path
 
+# Nada de sys.path: el paquete se instala en editable (`make instalar`).
 RAIZ = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ.parent))
+CEREBRO = RAIZ / "hugin"
 
 import entorno  # noqa: E402,F401
 
@@ -20,14 +20,18 @@ from hugin.guardado import ajustes  # noqa: E402
 
 PAQUETES = ("mente", "negocio", "guardado")
 
-# Un canal es por donde entra la conversacion. hugin no sabe cual es, y esa
-# es toda la razon de que este repo exista aparte.
+# Un canal es por donde entra la conversacion. El cerebro no sabe cual es, y
+# esa es toda la razon de que sea un paquete aparte.
+#
+# Desde el ADR-024 los canales viven en este mismo repo (`telegram/`,
+# `telefono/`), asi que esta prueba es lo UNICO que sujeta el corte: antes
+# tambien lo sujetaba la frontera entre repositorios, y ya no.
 CANALES = {"telefono", "dueno", "twilio", "telnyx", "signalwire", "flask"}
 
 
 def modulos():
     for paquete in PAQUETES:
-        yield from sorted((RAIZ / paquete).glob("*.py"))
+        yield from sorted((CEREBRO / paquete).glob("*.py"))
 
 
 class TestNoSabeDeNingunCanal(unittest.TestCase):
@@ -86,15 +90,17 @@ class TestNoSabeDeNingunCanal(unittest.TestCase):
 
 
 class TestSeUsaComoSeDice(unittest.TestCase):
-    def test_la_carpeta_del_repo_es_el_paquete(self):
-        # Si el repo se clona con otro nombre, `import hugin` no encuentra
-        # nada. Mas vale decirlo aqui que en el arranque de la aplicacion.
-        self.assertEqual(RAIZ.name, "hugin")
-        self.assertTrue((RAIZ / "__init__.py").exists())
+    def test_el_cerebro_es_un_paquete_dentro_del_repo(self):
+        # Desde el ADR-024 el repo es el producto y el cerebro es `hugin/`
+        # dentro de el. Antes el paquete era la carpeta del repo, lo que
+        # obligaba a clonarlo con ese nombre exacto para que `import hugin`
+        # encontrara algo; ahora lo que va al sys.path es la raiz.
+        self.assertTrue(CEREBRO.is_dir(), "falta el paquete hugin/")
+        self.assertTrue((CEREBRO / "__init__.py").exists())
 
     def test_cada_paquete_existe_y_dice_para_que_es(self):
         for paquete in PAQUETES:
-            inicio = RAIZ / paquete / "__init__.py"
+            inicio = CEREBRO / paquete / "__init__.py"
             self.assertTrue(inicio.exists(), f"falta {paquete}/__init__.py")
             self.assertTrue(ast.get_docstring(ast.parse(inicio.read_text(encoding="utf-8"))),
                             f"{paquete}/__init__.py no dice para que es")
@@ -113,7 +119,7 @@ class TestLaSuiteNoLeeTusSecretos(unittest.TestCase):
     def test_el_env_se_busca_desde_el_directorio_de_trabajo(self):
         # Nunca desde `__file__`: esta libreria vive dentro de la aplicacion
         # que la usa, y el .env es de quien despliega, no de quien programa.
-        fuente = (RAIZ / "guardado" / "ajustes.py").read_text(encoding="utf-8")
+        fuente = (CEREBRO / "guardado" / "ajustes.py").read_text(encoding="utf-8")
         cuerpo = fuente.split("def fichero", 1)[1].split("\ndef ", 1)[0]
         self.assertIn("Path.cwd()", cuerpo)
         self.assertNotIn("__file__", cuerpo)

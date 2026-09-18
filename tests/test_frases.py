@@ -6,15 +6,13 @@ es que **una errata no pueda tumbar una llamada**, y que lo que no se puede
 cambiar siga sin poder cambiarse.
 """
 
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-# La raiz del repo **es** el paquete `hugin`, asi que lo que tiene que
-# estar en el sys.path es la carpeta que lo contiene.
+# Nada de sys.path: el paquete se instala en editable (`make instalar`),
+# asi que `import hugin` funciona sin trucos (ADR-024).
 RAIZ = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ.parent))
 
 import entorno  # noqa: E402,F401
 

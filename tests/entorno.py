@@ -75,8 +75,6 @@ def _sin_credenciales_de_verdad() -> None:
     buscar el fichero cada vez, así que no basta con limpiar `os.environ`.
     Se le dice por su propia variable que el .env está en una carpeta vacía.
     """
-    import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
     from hugin.guardado import ajustes
 
     for variable in CREDENCIALES:

@@ -1,0 +1,29 @@
+# bifrost solo se puede lintar por su cuenta: sus 179 pruebas importan
+# midgaror/diario/ subiendo dos niveles desde tests/, asi que necesitan el
+# repo padre y se ejecutan en la CI de midgaror (.github/workflows/pruebas.yml).
+name: Lint
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Instalar ruff
+        run: pipx install ruff==0.15.8
+
+      - name: Lint
+        run: ruff check .

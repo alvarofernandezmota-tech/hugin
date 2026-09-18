@@ -1,0 +1,65 @@
+# Unidad de systemd para bifrost.
+# Instalacion y comandos: ver README.md, seccion "Como servicio".
+#
+# Las rutas llevan el usuario y la ubicacion reales de Madre. Si el repo
+# vive en otro sitio, hay que cambiarlas antes de copiar la unidad.
+#
+# Apuntan a midgaror-bot, la copia del repo que es solo del bot y esta
+# siempre en main. Antes apuntaban a la copia de trabajo de Alvaro, y un
+# `git checkout` suyo le cambiaba al servicio el diario, la rama a la que
+# commitea y el codigo que carga al reiniciar. El porque y como montarla:
+# midgaror/docs/infra/bifrost.md, "El bot tiene su propia copia del repo".
+
+[Unit]
+Description=bifrost - bot de Telegram para el diario personal
+Documentation=https://github.com/alvarofernandezmota-tech/bifrost
+After=network-online.target
+Wants=network-online.target
+# Sin tope de reinicios. Antes habia uno (5 en 5 min), pensado para que un
+# bot roto no reintentara en bucle eterno. Pero el fallo mas probable al
+# arrancar no es un bot roto: es que no haya red todavia (se reinicia Madre y
+# la red tarda un minuto). bot.py sin red muere en <1 s, asi que los 5
+# reintentos se gastan en ~50 s y systemd marca la unidad `failed` PARA
+# SIEMPRE, aunque la red vuelva a los dos minutos; hay que entrar a hacer
+# `systemctl reset-failed` a mano. Con el tope quitado, reintenta cada 10 s
+# hasta que la red este. Un error de configuracion de verdad (token invalido)
+# lo corta bot.py saliendo, no el tope. Auditoria del 2026-09-08.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=varopc
+Group=varopc
+WorkingDirectory=/home/varopc/GitHub/personal/midgaror-bot/proyectos/bifrost
+ExecStart=/home/varopc/GitHub/personal/midgaror-bot/proyectos/bifrost/venv/bin/python bot.py
+
+# El token NO se pasa por systemd: lo lee python-dotenv del .env. Asi no
+# aparece en `systemctl show` ni en el volcado de la unidad.
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+# El bot tiene que volver siempre, salga como salga, salvo que alguien
+# haga systemctl stop. Con on-failure no volvia si lo mataban con SIGTERM,
+# porque python-telegram-bot lo captura y sale limpio con codigo 0, y eso
+# systemd no lo cuenta como fallo. Probado en Madre el 2026-09-04:
+# systemctl kill lo dejo inactive. El tope de reinicios esta en [Unit].
+Restart=always
+RestartSec=10s
+
+# El bot escribe en el diario y, desde diario/sincronizar.py, commitea y
+# empuja. git escribe en .git/, que esta en la raiz del repo, asi que el
+# permiso tiene que cubrir el repo entero: con solo diario/personal el
+# commit falla siempre. Fuera del repo, todo de solo lectura.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/varopc/GitHub/personal/midgaror-bot
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

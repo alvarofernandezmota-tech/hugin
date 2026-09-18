@@ -1,0 +1,52 @@
+# Dependencias de bifrost, con la version fijada.
+#
+# Fijadas y no "la ultima": el bot corre en Madre como servicio systemd y se
+# actualiza con un git pull. Sin version fija, un pip install en el momento
+# equivocado trae una version nueva de python-telegram-bot con la API cambiada
+# y el bot deja de arrancar sin que nadie haya tocado el codigo.
+#
+# Estas son las que hay instaladas y funcionando en Madre a dia de hoy
+# (2026-09-06). Para subirlas: cambiar el numero aqui, reinstalar, correr
+# python3 scripts/verificar.py desde midgaror y probar un /hoy de verdad.
+#
+#     venv/bin/pip install -r requirements.txt
+#
+# Solo van las que importamos nosotros. Lo demas (httpx, anyio, certifi,
+# h11, httpcore, idna) lo arrastra python-telegram-bot y lo resuelve pip.
+
+python-telegram-bot==22.8
+python-dotenv==1.2.3
+
+# Para diario/entender.py (el texto suelto que se clasifica antes de ir al
+# diario). El import está DENTRO de la función que la usa, así que sin esto
+# instalado el bot arranca igual y el mensaje sigue yendo al diario como
+# siempre — entender.configurado() corta antes de llegar aquí mientras no
+# haya ANTHROPIC_API_KEY en el .env. Solo hace falta instalarla el día que
+# se ponga esa clave. Version sin fijar a un dia concreto todavia porque no
+# está instalada en Madre: la primera vez que se active, fijar aquí la que
+# quede instalada y probar un mensaje suelto de verdad, igual que con las
+# de arriba.
+anthropic==1.6.0
+
+# Para utils/voz.py (notas de voz por Telegram, con Whisper en local). Mismo
+# trato: el import de `faster_whisper` está DENTRO de la función que lo usa,
+# así que sin esto instalado el bot arranca igual y las notas de voz fallan
+# con un aviso claro en vez de tirar el bot. Arrastra `ctranslate2` (unos
+# cientos de MB) y descarga el modelo `small` (~500 MB) la primera vez que
+# se use. También hace falta `ffmpeg` como paquete del sistema —eso no lo
+# instala pip— para poder leer el .oga que manda Telegram.
+faster-whisper==1.1.1
+
+# `requests` va aquí porque faster-whisper NO lo declara y sin embargo lo
+# importa: `faster_whisper/utils.py` línea 8, `import requests`, a pelo.
+#
+# Funcionaba de rebote porque se lo traía `huggingface-hub`. La 1.x se pasó a
+# `httpx` y dejó de traerlo, así que en una instalación nueva —la de Madre del
+# 2026-09-17— el paquete se instala «bien» y revienta al primer uso con un
+# `ModuleNotFoundError: No module named 'requests'`, hablando de un paquete
+# que nadie había pedido.
+#
+# Comprobado leyendo los imports del wheel 1.1.1: de lo que importa
+# (av, ctranslate2, huggingface_hub, numpy, requests, tokenizers, tqdm) este
+# es el ÚNICO que falta en su metadata. Los demás vienen solos.
+requests==2.34.2

@@ -1,0 +1,18 @@
+# El .env lleva el token de Telegram y la clave de la API. Y con él, todo lo
+# que se le parezca: la noche del 2026-09-18, arreglando un .env que un editor
+# había estropeado, quedó un `.env.bak` en Madre con el token dentro. `.env`
+# estaba ignorado; `.env.bak` no. Un `git add -A` lo habría subido a un repo
+# PÚBLICO, y un token en el historial de git no se quita borrando el fichero:
+# hay que rotarlo.
+#
+# Por eso la regla es por patrón y no por nombre: los `.env.algo` que aún no
+# existen ya están cubiertos.
+.env
+.env.*
+# menos el ejemplo, que va sin secretos y tiene que viajar con el repo. Va
+# DESPUÉS del patrón a propósito: en git manda la última regla que casa.
+!.env.example
+
+*.pyc
+__pycache__/
+venv/

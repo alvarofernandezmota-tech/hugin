@@ -37,7 +37,7 @@ from hugin.guardado import copias
 from hugin.guardado import datos
 from hugin.negocio import frases as _frases
 from hugin.negocio import negocio as negocios
-from telefono import telefonia
+from canal import telefonia
 
 BIEN, AVISO, FALLO = "✅", "⚠️ ", "❌"
 

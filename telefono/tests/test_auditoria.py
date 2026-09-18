@@ -22,8 +22,8 @@ from dueno import avisar  # noqa: E402
 from hugin.guardado import avisos  # noqa: E402
 from dueno import diagnostico  # noqa: E402
 from hugin.negocio import negocio as negocios  # noqa: E402
-from telefono import servidor  # noqa: E402
-from telefono import telefonia  # noqa: E402
+from canal import servidor  # noqa: E402
+from canal import telefonia  # noqa: E402
 
 
 class TestElCuerpoDeLaPeticion(unittest.TestCase):

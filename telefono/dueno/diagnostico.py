@@ -128,7 +128,7 @@ def informe(negocio: str, puerto: int, corto: bool, puerto_telefono: int = 8081)
         f"puerto {puerto} (demo, solo tailnet): "
         f"{'cogido (¿el servidor?)' if puerto_cogido(puerto) else 'libre'}",
     ]
-    from telefono import telefonia
+    from canal import telefonia
     if telefonia.configuracion() is None:
         lineas.append("teléfono: sin token, el webhook no arranca")
     else:

@@ -72,8 +72,8 @@ from hugin.negocio import frases
 from hugin.negocio import negocio as negocios
 from dueno import panel as _panel
 from hugin.mente import recepcion
-from telefono import telefonia
-from telefono import voz
+from canal import telefonia
+from canal import voz
 
 # Cada navegador graba en lo suyo: Chrome y Firefox en webm, **Safari en iOS
 # en mp4**. Antes esto se escribia siempre como `.webm`, asi que una llamada

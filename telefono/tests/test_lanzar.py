@@ -217,7 +217,7 @@ class TestBarrerLosHuecos(unittest.TestCase):
     def test_una_credencial_de_verdad_no_se_borra_sola(self):
         # `_barrer_los_huecos` solo llama a esto para lo que es de relleno.
         # Una clave buena del proveedor que no usas se queda donde está.
-        from telefono import telefonia
+        from canal import telefonia
         self.assertFalse(telefonia.token_de_mentira(
             "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"))
 

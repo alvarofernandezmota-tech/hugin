@@ -20,7 +20,7 @@ from hugin.mente import fechas  # noqa: E402
 from hugin.negocio import frases  # noqa: E402
 from hugin.negocio import negocio as negocios  # noqa: E402
 from hugin.mente import recepcion  # noqa: E402
-from telefono import telefonia  # noqa: E402
+from canal import telefonia  # noqa: E402
 
 
 class CasoPeluqueria(unittest.TestCase):
@@ -149,7 +149,7 @@ class TestRepetirYPersona(CasoPeluqueria):
 
 class TestElRelojSeLee(unittest.TestCase):
     def test_las_horas_del_horario_no_se_leen_como_reloj(self):
-        from telefono import voz
+        from canal import voz
         dicho = voz.para_decir("De 10:00 a 14:00 y de 16:30 a 20:00. Sábados de 9:15 a 13:45.")
         self.assertEqual(dicho, "De 10 a 14 y de 16 y media a 20. Sábados de 9 y cuarto a 13 y 45.")
 

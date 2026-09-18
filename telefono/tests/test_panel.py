@@ -25,7 +25,7 @@ from hugin.guardado import avisos  # noqa: E402
 from hugin.mente import memoria  # noqa: E402
 from hugin.negocio import negocio as negocios  # noqa: E402
 from dueno import panel  # noqa: E402
-from telefono import servidor  # noqa: E402
+from canal import servidor  # noqa: E402
 
 MADRID = ZoneInfo("Europe/Madrid")
 VIERNES = datetime(2026, 9, 11, 10, 0, tzinfo=MADRID)   # la peluquería abre

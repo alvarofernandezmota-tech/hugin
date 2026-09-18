@@ -33,7 +33,7 @@ $(PY):
 
 instalar: $(PY)  ## venv + dependencias + modelos de voz, de una vez
 	$(PIP) install -r requirements.txt
-	$(PY) -m telefono.voz
+	$(PY) -m canal.voz
 
 nuevo:  ## dar de alta otro negocio: make nuevo NEGOCIO=mi-negocio
 	@test -n "$(NEGOCIO)" -a "$(NEGOCIO)" != peluqueria || { echo "❌ di el nombre: make nuevo NEGOCIO=mi-negocio"; exit 1; }
@@ -43,7 +43,7 @@ nuevo:  ## dar de alta otro negocio: make nuevo NEGOCIO=mi-negocio
 	@echo "  Arrancar con el:  make servidor NEGOCIO=$(NEGOCIO)   o   make arrancar NEGOCIO=$(NEGOCIO)"
 
 voz: $(PY)  ## ¿oye y habla esta maquina? versiones y milisegundos
-	$(PY) -m telefono.voz
+	$(PY) -m canal.voz
 
 MODELO  ?= small
 
@@ -51,10 +51,10 @@ medir: $(PY)  ## cuanto tarda en contestar. Prueba MODELO=base y MODELO=tiny
 	$(PY) -m dueno.medir_voz --negocio $(NEGOCIO) --modelo $(MODELO)
 
 probar: $(PY)  ## el recepcionista por teclado, con memoria y agenda
-	$(PY) -m telefono.demo --negocio $(NEGOCIO)
+	$(PY) -m canal.demo --negocio $(NEGOCIO)
 
 servidor: $(PY)  ## el MVP en primer plano (Ctrl+C para parar)
-	$(PY) -m telefono.servidor --negocio $(NEGOCIO) --puerto $(PUERTO) --puerto-telefono $(PUERTO_TELEFONO)
+	$(PY) -m canal.servidor --negocio $(NEGOCIO) --puerto $(PUERTO) --puerto-telefono $(PUERTO_TELEFONO)
 
 serve: $(PY)  ## la demo, visible solo en tu tailnet (para el movil)
 	tailscale serve --bg $(PUERTO)
@@ -119,7 +119,7 @@ funnel: $(PY)  ## publicar SOLO el webhook del telefono en internet
 	@echo "Se ha publicado el puerto $(PUERTO_TELEFONO), que sirve SOLO /telefono/*."
 	@echo "El $(PUERTO) (la pagina, /hablar, /colgar) sigue sin salir de tu tailnet."
 	@echo
-	@$(PY) -m telefono.urlpublica --para-el-proveedor
+	@$(PY) -m canal.urlpublica --para-el-proveedor
 
 sin-funnel:  ## dejar de publicar: nada sale a internet
 	tailscale funnel --https=443 off
@@ -129,7 +129,7 @@ avisar: $(PY)  ## mandar al movil los avisos pendientes (Telegram)
 	$(PY) -m dueno.avisar
 
 telefono-prueba: $(PY)  ## una llamada por teclado, como la veria el proveedor
-	$(PY) -m telefono.telefonia --simular --negocio $(NEGOCIO) --puerto $(PUERTO_TELEFONO)
+	$(PY) -m canal.telefonia --simular --negocio $(NEGOCIO) --puerto $(PUERTO_TELEFONO)
 
 telegram-prueba: $(PY)  ## ¿llega un mensaje al movil? comprueba token y chat
 	$(PY) -m dueno.avisar --prueba

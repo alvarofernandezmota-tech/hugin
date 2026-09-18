@@ -23,7 +23,7 @@ import entorno  # noqa: E402,F401
 
 from hugin.guardado import avisos  # noqa: E402
 from hugin.negocio import negocio as negocios  # noqa: E402
-from telefono import servidor  # noqa: E402
+from canal import servidor  # noqa: E402
 
 
 class CasoServidor(unittest.TestCase):

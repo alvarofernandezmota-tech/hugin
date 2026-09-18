@@ -42,7 +42,7 @@ from pathlib import Path
 
 from hugin.negocio import negocio as negocios
 from hugin.mente import recepcion
-from telefono import voz
+from canal import voz
 
 # Un silencio mayor que esto al teléfono es cuando el cliente dice «¿hola?».
 PRESUPUESTO_MS = 2000

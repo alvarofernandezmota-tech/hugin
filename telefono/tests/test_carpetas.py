@@ -23,7 +23,7 @@ sys.path.insert(0, str(RAIZ))
 # El cerebro —`mente`, `negocio`, `guardado`— ya no está aquí: vive en hugin,
 # montado como submódulo ([ADR-019]). Esa es la frontera que vigila
 # `TestLaFronteraConHugin`, más abajo.
-PAQUETES = {"telefono", "dueno"}
+PAQUETES = {"canal", "dueno"}
 
 # Los del cerebro, que tienen que estar DENTRO de hugin y no fuera.
 DE_HUGIN = ("mente", "negocio", "guardado")
@@ -191,7 +191,7 @@ class TestLaSuiteNoLeeTusSecretos(unittest.TestCase):
 
     def test_sin_telefono_configurado_para_la_suite(self):
         # La consecuencia que importa: da igual lo que tengas en tu .env.
-        from telefono import telefonia
+        from canal import telefonia
         self.assertIsNone(telefonia.configuracion())
 
 

@@ -28,7 +28,7 @@ from hugin.negocio import agenda as ag  # noqa: E402
 from hugin.mente import fechas  # noqa: E402
 from hugin.negocio import negocio as negocios  # noqa: E402
 from hugin.mente import recepcion  # noqa: E402
-from telefono import telefonia  # noqa: E402
+from canal import telefonia  # noqa: E402
 
 MADRID = ZoneInfo("Europe/Madrid")
 VIERNES = datetime(2026, 9, 11, 10, 0, tzinfo=MADRID)

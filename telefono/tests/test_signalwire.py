@@ -22,7 +22,7 @@ sys.path.insert(0, str(RAIZ))
 
 import entorno  # noqa: E402,F401
 
-from telefono import telefonia  # noqa: E402
+from canal import telefonia  # noqa: E402
 
 CLAVE = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
 URL = "https://maquina.tailnet.ts.net/telefono/entrada"

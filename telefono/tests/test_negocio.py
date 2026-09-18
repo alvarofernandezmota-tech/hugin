@@ -22,8 +22,8 @@ import entorno  # noqa: E402,F401 — antes que nada
 
 from hugin.guardado import avisos  # noqa: E402
 from hugin.negocio import negocio as negocios  # noqa: E402
-from telefono import demo  # noqa: E402
-from telefono import voz  # noqa: E402
+from canal import demo  # noqa: E402
+from canal import voz  # noqa: E402
 
 
 class TestDarDeAltaUnNegocio(unittest.TestCase):

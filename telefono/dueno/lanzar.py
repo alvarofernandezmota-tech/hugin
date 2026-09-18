@@ -26,8 +26,8 @@ from hugin.guardado import avisos
 from hugin.guardado import datos
 from hugin.negocio import negocio as negocios
 from dueno import revisar as _revisar
-from telefono import telefonia
-from telefono import urlpublica
+from canal import telefonia
+from canal import urlpublica
 
 RAIZ = Path(__file__).resolve().parent.parent
 CLAVE_TELNYX = "GJALLARHORN_TELEFONO_CLAVE_PUBLICA"
@@ -60,7 +60,7 @@ def _que_clave_es(dicho: str) -> tuple[str, str] | None:
     dicho = dicho.strip()
     if not dicho or telefonia.token_de_mentira(dicho):
         return None
-    from telefono import firmas
+    from canal import firmas
     if len(firmas.de_base64(dicho)) == 32:
         return CLAVE_TELNYX, "la clave publica de Telnyx"
     # Lo que da cada proveedor y NO vale, con su pinta, para poder decirlo

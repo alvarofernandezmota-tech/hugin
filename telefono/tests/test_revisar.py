@@ -25,7 +25,7 @@ from hugin.negocio import frases as _frases  # noqa: E402
 from hugin.negocio import negocio as negocios  # noqa: E402
 from dueno import avisar  # noqa: E402
 from dueno import revisar as _revisar  # noqa: E402
-from telefono import telefonia  # noqa: E402
+from canal import telefonia  # noqa: E402
 
 HOY = date(2026, 9, 11)
 
@@ -216,7 +216,7 @@ class TestLaOrden(CasoRevisar):
         self.assertIn("no encuentro el negocio", dicho)
 
     def test_con_telefono_configurado_sale_0(self):
-        from telefono import telefonia
+        from canal import telefonia
         antes = telefonia.configuracion
         telefonia.configuracion = lambda: {"token": "secreto", "voz": "Polly.Lucia"}
         self.addCleanup(lambda: setattr(telefonia, "configuracion", antes))

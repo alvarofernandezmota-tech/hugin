@@ -67,9 +67,9 @@ from dueno import avisar
 from hugin.guardado import avisos
 from hugin.guardado import datos
 from hugin.mente import memoria
-from telefono import firmas
+from canal import firmas
 from hugin.mente import recepcion
-from telefono import voz as voz_
+from canal import voz as voz_
 
 RAIZ = Path(__file__).resolve().parent.parent
 VOZ_POR_DEFECTO = "Polly.Lucia"      # castellano de España, en el proveedor

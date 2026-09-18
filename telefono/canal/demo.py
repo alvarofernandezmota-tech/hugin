@@ -1,7 +1,7 @@
 """La demo por teclado y por audio: lo unico de `recepcion` que usaba la voz.
 
 Vivia al final de `mente/recepcion.py`, y era la **unica** linea que hacia
-que el cerebro dependiera del telefono: `from telefono import voz`. Con eso
+que el cerebro dependiera del telefono: `from canal import voz`. Con eso
 dentro, separar el cerebro a su propio repo habria creado una dependencia
 circular entre los dos —el cerebro necesitando al bot de voz—, que es justo
 lo que no puede pasar.
@@ -20,7 +20,7 @@ from hugin.mente import conocimiento
 from hugin.mente.recepcion import Respuesta, atender, conversacion_de
 from hugin.negocio import frases as _frases
 from hugin.negocio import negocio as negocios
-from telefono import voz
+from canal import voz
 
 
 def llamada(audio: Path, negocio, transcriptor, locutor=None,

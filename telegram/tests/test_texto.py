@@ -11,12 +11,14 @@ exactamente como antes de que esto existiera.
 
 import sys
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from dobles import CasoBot  # noqa: E402  (instala el telegram falso)
 
 from handlers import texto  # noqa: E402
+from hugin.personal import fechas as fechas_personal  # noqa: E402
 
 HOY = "## Qué ha pasado hoy"
 
@@ -80,6 +82,25 @@ class TestSeEnrutaConAltaConfianza(CasoBot):
         self.assertIn("📝", respuesta)
         apuntes = self.registro.del_dia("2026-09-05", inq=self.inquilino)
         self.assertEqual(apuntes, [{"fecha": "2026-09-05", "que": "tele", "valor": 3, "unidad": "h"}])
+        self.assertEqual(self.seccion(HOY), "")
+
+    def test_apunte_con_fecha_en_espanol_no_revienta_ni_cae_al_diario(self):
+        # Bug real, encontrado midiendo la fase 4 del ADR-024: `e.cuando`
+        # llega en español tal cual lo dijo quien escribe ("ayer", "el
+        # lunes"; entender.py:119), y hugin.apuntes.apuntar() espera
+        # AAAA-MM-DD. Sin resolverlo antes, normalizar_fecha('ayer') lanza
+        # ValueError, el except de _enrutar se lo traga y el apunte se
+        # pierde como una línea suelta del diario — sin apuntarse donde
+        # tocaba y sin que nadie se entere.
+        ayer = (date.fromisoformat(fechas_personal.hoy()) - timedelta(days=1)).isoformat()
+        texto._preguntar = _preguntar(intencion="apunte", nombre="agua", valor=2, unidad="l",
+                                      cuando="ayer", confianza="alta")
+        respuesta = self.texto_libre("2 litros de agua ayer")
+        self.assertIn("📝", respuesta)
+        self.assertNotIn("Error", respuesta)
+        apuntes = self.registro.del_dia(ayer, inq=self.inquilino)
+        self.assertEqual(apuntes, [{"fecha": ayer, "que": "agua", "valor": 2, "unidad": "l"}])
+        # Y sobre todo: NO cae al diario como prosa suelta.
         self.assertEqual(self.seccion(HOY), "")
 
 

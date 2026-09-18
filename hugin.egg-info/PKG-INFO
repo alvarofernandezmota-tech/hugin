@@ -5,6 +5,8 @@ Summary: El cerebro de un bot que atiende a gente, sin saber por donde le hablan
 Requires-Python: >=3.11
 Provides-Extra: llm
 Requires-Dist: anthropic==1.6.0; extra == "llm"
+Provides-Extra: postgres
+Requires-Dist: psycopg[binary]<4,>=3.1; extra == "postgres"
 Provides-Extra: dev
 Requires-Dist: ruff==0.15.8; extra == "dev"
 Provides-Extra: test

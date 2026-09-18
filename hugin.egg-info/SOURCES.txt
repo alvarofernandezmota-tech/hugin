@@ -1,6 +1,7 @@
 README.md
 pyproject.toml
 hugin/__init__.py
+hugin/inquilino.py
 hugin.egg-info/PKG-INFO
 hugin.egg-info/SOURCES.txt
 hugin.egg-info/dependency_links.txt
@@ -12,6 +13,7 @@ hugin/guardado/almacen.py
 hugin/guardado/avisos.py
 hugin/guardado/copias.py
 hugin/guardado/datos.py
+hugin/guardado/postgres.py
 hugin/mente/__init__.py
 hugin/mente/cerebro.py
 hugin/mente/conocimiento.py
@@ -35,8 +37,10 @@ tests/test_datos.py
 tests/test_fechas.py
 tests/test_frases.py
 tests/test_horas.py
+tests/test_inquilino.py
 tests/test_libreria.py
 tests/test_memoria.py
 tests/test_pedir_sin_decir_cita.py
+tests/test_postgres.py
 tests/test_rag.py
 tests/test_recepcion.py

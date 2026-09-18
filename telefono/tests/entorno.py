@@ -68,6 +68,24 @@ CREDENCIALES = ("GJALLARHORN_TELEFONO_TOKEN", "GJALLARHORN_TELEFONO_CLAVE_PUBLIC
                 "GJALLARHORN_LLM", "GJALLARHORN_LLM_MODELO")
 
 
+def _anadir_el_cerebro() -> None:
+    """El cerebro (`hugin`) vive un nivel por encima, en la raiz del repo.
+
+    Hasta el ADR-024 estaba dentro como submodulo, en `telefono/hugin`, y
+    bastaba con tener esta carpeta en el sys.path. Ahora el repo es el
+    producto entero y el cerebro es su paquete `hugin/`.
+
+    Se **anade al final** y no al principio a proposito: esta carpeta se
+    llama `telefono` y contiene otra `telefono/`, asi que poniendo la raiz
+    delante `import telefono` encontraria la de fuera, que no es un paquete,
+    en vez de la de dentro.
+    """
+    import sys
+    raiz = str(Path(__file__).resolve().parent.parent.parent)
+    if raiz not in sys.path:
+        sys.path.append(raiz)
+
+
 def _sin_credenciales_de_verdad() -> None:
     """Quita las credenciales del entorno y esconde el .env del repo.
 
@@ -81,6 +99,7 @@ def _sin_credenciales_de_verdad() -> None:
 
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    _anadir_el_cerebro()
     from dueno import avisar
     vacia = tempfile.mkdtemp(prefix="gjallarhorn-sin-env-")
     atexit.register(shutil.rmtree, vacia, ignore_errors=True)

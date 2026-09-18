@@ -106,9 +106,11 @@ class TestLosPuntosDeEntrada(unittest.TestCase):
 
     def test_cada_orden_del_makefile_apunta_a_un_modulo_que_existe(self):
         for orden in self.ordenes_del_makefile():
-            # Puede tener dos partes (`dueno.panel`) o tres, ahora que el
-            # cerebro va por el submódulo (`hugin.mente.cerebro`).
-            ruta = RAIZ.joinpath(*orden.split(".")).with_suffix(".py")
+            # Lo de casa (`dueno.panel`) cuelga de aquí; el cerebro
+            # (`hugin.mente.cerebro`) está en la raíz del repo, un nivel por
+            # encima, desde el ADR-024.
+            base = RAIZ.parent if orden.startswith("hugin.") else RAIZ
+            ruta = base.joinpath(*orden.split(".")).with_suffix(".py")
             with self.subTest(orden=orden):
                 self.assertTrue(ruta.exists(), f"«make» llama a {orden} y no está")
 
@@ -227,17 +229,22 @@ class TestLaFronteraConHugin(unittest.TestCase):
             "", "Es `from hugin.mente import ...`, no `from mente import ...`.",
         ]))
 
-    def test_el_submodulo_esta_declarado_y_traido(self):
-        self.assertIn("path = hugin",
-                      (RAIZ / ".gitmodules").read_text(encoding="utf-8"))
-        # Un submódulo sin inicializar es una carpeta vacía, y el fallo sale
-        # luego como un ImportError que no dice que falte un `git submodule`.
-        self.assertTrue((RAIZ / "hugin" / "mente" / "recepcion.py").exists(),
-                        "hugin está vacío: falta `git submodule update --init`")
+    def test_el_cerebro_es_un_paquete_hermano_y_no_un_submodulo(self):
+        # Desde el ADR-024 el cerebro no se trae con `git submodule`: es el
+        # paquete `hugin/` de la raíz del repo, y esta carpeta es una de sus
+        # dos puertas. Un submódulo aquí volvería a ser circular.
+        self.assertFalse((RAIZ / ".gitmodules").exists(),
+                         "vuelve a haber un submódulo dentro de telefono/")
+        self.assertTrue((RAIZ.parent / "hugin" / "mente" / "recepcion.py").exists(),
+                        "no encuentro el cerebro en la raíz del repo")
 
-    def test_make_pruebas_entra_en_el_submodulo(self):
-        # Sin esto, `make pruebas` sale en verde con hugin roto.
+    def test_make_pruebas_corre_tambien_las_del_cerebro(self):
+        # Sin esto, `make pruebas` sale en verde con el cerebro roto. Y no
+        # basta con leer el Makefile: la carpeta a la que entra tiene que
+        # existir, que es justo lo que se rompió al mover el cerebro.
         texto = (RAIZ / "Makefile").read_text(encoding="utf-8")
         objetivo = texto.split("\npruebas:")[1].split("\n\n")[0]
-        self.assertIn("cd hugin", objetivo,
-                      "«make pruebas» no corre las pruebas de hugin")
+        self.assertIn("cd ..", objetivo,
+                      "«make pruebas» no corre las pruebas del cerebro")
+        self.assertTrue((RAIZ.parent / "tests").is_dir(),
+                        "«make pruebas» entra en una carpeta que no existe")

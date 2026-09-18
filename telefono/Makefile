@@ -136,10 +136,11 @@ telegram-prueba: $(PY)  ## ¿llega un mensaje al movil? comprueba token y chat
 
 pruebas: $(PY)  ## las pruebas y el lint, las de aqui y las de hugin
 	$(PY) -m unittest discover -s tests
-	@# El cerebro vive en el submodulo y tiene sus propias pruebas. Sin esta
-	@# linea, `make pruebas` sale en verde con hugin roto, que es la peor
-	@# forma de enterarse: la frontera se vigila desde los dos lados.
-	cd hugin && $(PY) -m unittest discover -s tests
+	@# El cerebro esta en la raiz del repo (ADR-024) y tiene sus propias
+	@# pruebas. Sin esta linea, `make pruebas` sale en verde con el cerebro
+	@# roto, que es la peor forma de enterarse: la frontera se vigila desde
+	@# los dos lados.
+	cd .. && $(PY) -m unittest discover -s tests
 	@# Una comprobacion saltada NO es una comprobacion pasada: si no hay
 	@# ruff se dice con todas las letras en vez de morir con un
 	@# "command not found" que parece que el codigo esta mal.

@@ -254,6 +254,21 @@ class TestUnFicheroConLaFormaEquivocadaTampocoTumbaLaLlamada(unittest.TestCase):
         self.assertIn("10 €", llamada.atender("¿cuánto vale un corte?").texto)
 
 
+class TestSustituirSinonimos(unittest.TestCase):
+    """Antes duplicado, literal, en rag.py y conocimiento.py."""
+
+    def test_los_mas_largos_primero(self):
+        propias = frases.Frases({}, {}, {
+            "corte": ["corte de pelo", "cortarme"],
+        })
+        self.assertEqual(propias.sustituir_sinonimos("quiero un corte de pelo"),
+                         "quiero un corte")
+
+    def test_sin_sinonimos_no_cambia_nada(self):
+        propias = frases.Frases({}, {}, {})
+        self.assertEqual(propias.sustituir_sinonimos("hola"), "hola")
+
+
 class TestDecirNoEvaluaElDefectoQueNoUsa(unittest.TestCase):
     def test_una_clave_que_no_existe_en_ningun_sitio_se_queja_claro(self):
         cargadas = frases.cargar(None)

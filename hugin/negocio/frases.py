@@ -305,6 +305,19 @@ class Frases:
         patron = self.entiende.get(clave)
         return bool(patron and patron.search(comparable))
 
+    def sustituir_sinonimos(self, texto: str) -> str:
+        """`texto` con cada sinónimo cambiado por su palabra de la tabla.
+
+        De más largo a más corto: sin esto, un sinónimo que es prefijo de
+        otro más largo ("corte" dentro de "corte de pelo") se sustituiría
+        primero y dejaría el más largo a medias. Estaba duplicado, literal,
+        en `rag.py` y `conocimiento.py` — un sitio, no dos que puedan
+        separarse.
+        """
+        for dicho in sorted(self.sinonimos, key=len, reverse=True):
+            texto = re.sub(rf"\b{re.escape(dicho)}\b", self.sinonimos[dicho], texto)
+        return texto
+
     @staticmethod
     def _quejarse(clave, plantilla, error) -> None:
         from hugin.guardado import avisos

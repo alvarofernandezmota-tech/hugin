@@ -157,10 +157,7 @@ def _tokens(texto: str, base: Path | None = None) -> list[str]:
     from hugin.negocio import frases as _frases
 
     llano = conocimiento._sin_tildes(texto)
-    traducido = llano
-    sinonimos = _frases.cargar(base).sinonimos
-    for dicho in sorted(sinonimos, key=len, reverse=True):
-        traducido = re.sub(rf"\b{re.escape(dicho)}\b", sinonimos[dicho], traducido)
+    traducido = _frases.cargar(base).sustituir_sinonimos(llano)
     palabras = _utiles(llano)
     # Los sinónimos **suman**, no sustituyen. Sustituyendo se perdía la
     # palabra original, y con ella la pregunta: «peinados de novia» tiene

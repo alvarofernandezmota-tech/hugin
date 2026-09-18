@@ -232,8 +232,8 @@ def proveedor() -> str:
         return "groq" if os.environ.get("GROQ_API_KEY", "").strip() else ""
     if elegido in ("google", "gemini"):
         return "google" if os.environ.get("GOOGLE_API_KEY", "").strip() else ""
-    if elegido in ("anthropic", "claude"):
-        return "anthropic" if os.environ.get("ANTHROPIC_API_KEY", "").strip() else ""
+    # "anthropic"/"claude" explícitos y cualquier otra cosa (vacío, una
+    # errata) acaban en el mismo sitio: Claude si hay clave, nada si no.
     return "anthropic" if os.environ.get("ANTHROPIC_API_KEY", "").strip() else ""
 
 

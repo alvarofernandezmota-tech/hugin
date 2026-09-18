@@ -27,7 +27,8 @@ from hugin.mente import recepcion  # noqa: E402
 
 def modelo_que_dice(**campos):
     """Un `preguntar` de mentira: siempre contesta lo mismo."""
-    base = {"intencion": "otro", "servicio": None, "cuando": None, "nombre": None}
+    base = {"intencion": "otro", "servicio": None, "cuando": None, "nombre": None,
+           "confianza": "alta"}
     def preguntar(frase, servicios):
         return {**base, **campos}
     return preguntar
@@ -202,11 +203,14 @@ class TestLaConfianza(CasoCerebro):
             dice(intencion="cita", servicio="Tinte", confianza="media")]))
         self.assertIn("tinte", llamada.atender("lo del pelo ese").texto.lower())
 
-    def test_una_confianza_inventada_se_toma_por_alta(self):
+    def test_una_confianza_inventada_se_toma_por_baja(self):
+        # Bug real: se tomaba por "alta" -la que MENOS pide comprobar-,
+        # cuando una confianza que no se reconoce es justo lo contrario de
+        # "el modelo esta seguro": es que no se ha podido leer lo que dijo.
         e = cerebro.entender("x", self.base, preguntar=modelo_con_memoria([
             dice(intencion="horario", confianza="regulinchi")]))
-        self.assertEqual(e.confianza, "alta")
-        self.assertTrue(e.fiable)
+        self.assertEqual(e.confianza, "baja")
+        self.assertFalse(e.fiable)
 
 
 class TestElTopeDeGasto(CasoCerebro):

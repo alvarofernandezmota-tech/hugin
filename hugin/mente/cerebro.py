@@ -148,8 +148,8 @@ def proveedor() -> str:
         return "groq" if os.environ.get("GROQ_API_KEY", "").strip() else ""
     if elegido in ("google", "gemini"):
         return "google" if os.environ.get("GOOGLE_API_KEY", "").strip() else ""
-    if elegido in ("anthropic", "claude"):
-        return "anthropic" if os.environ.get("ANTHROPIC_API_KEY", "").strip() else ""
+    # "anthropic"/"claude" explícitos y cualquier otra cosa (vacío, una
+    # errata) acaban en el mismo sitio: Claude si hay clave, nada si no.
     return "anthropic" if os.environ.get("ANTHROPIC_API_KEY", "").strip() else ""
 
 
@@ -444,7 +444,12 @@ def entender(frase: str, base: Path | None = None, preguntar=None,
                      cuando=(crudo.get("cuando") or None),
                      nombre=(crudo.get("nombre") or None),
                      franja=franja if franja in FRANJAS else None,
-                     confianza=confianza if confianza in CONFIANZAS else "alta",
+                     # "baja", no "alta": una confianza ausente o con una
+                     # forma que no se reconoce es al reves de "el modelo
+                     # esta seguro" — es "no se ha podido leer lo que dijo
+                     # el modelo", y eso tiene que caer al lado seguro
+                     # (Entendido.fiable == False), no al que actua solo.
+                     confianza=confianza if confianza in CONFIANZAS else "baja",
                      ms=ms)
 
 

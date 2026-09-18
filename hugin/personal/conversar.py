@@ -198,6 +198,11 @@ def _preguntar_ollama(pregunta: str, contexto: str) -> str:
                      {"role": "user",
                       "content": f"{contexto}\n\n---\n\nPregunta: {pregunta}"}],
         "stream": False,
+        # Fijo y no al default de Ollama (variable segun VRAM libre): aqui
+        # el contexto es mas grande que en entender.py (hasta TOPE_CARACTERES
+        # de datos, mas la pregunta), asi que va con mas margen que los 4096
+        # de la clasificacion.
+        "options": {"num_ctx": 8192},
     }).encode("utf-8")
     peticion = urllib.request.Request(
         f"{entender.ollama()}/api/chat", data=cuerpo,

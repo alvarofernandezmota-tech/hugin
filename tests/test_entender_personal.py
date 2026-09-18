@@ -239,7 +239,7 @@ class TestProveedor(unittest.TestCase):
     def test_el_modelo_local_por_defecto_es_el_de_hugin(self):
         with self.limpio(MIDGAROR_LLM="ollama"):
             self.assertEqual(entender.modelo(), entender.MODELO_LOCAL_POR_DEFECTO)
-            self.assertEqual(entender.MODELO_LOCAL_POR_DEFECTO, "qwen2.5:7b")
+            self.assertEqual(entender.MODELO_LOCAL_POR_DEFECTO, "qwen3:4b-instruct-2507")
 
     def test_el_modelo_local_se_puede_forzar(self):
         with self.limpio(MIDGAROR_LLM="ollama", MIDGAROR_LLM_MODELO="gemma3:4b"):

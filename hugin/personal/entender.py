@@ -74,11 +74,17 @@ ESCRIBEN = ("tarea", "habito", "cita", "apunte")
 CONFIANZAS = ("alta", "media", "baja")
 
 MODELO_POR_DEFECTO = "claude-opus-5"
-# Un modelo pequeño y multilingüe: lo que cabe en Madre y entiende
-# castellano. El mismo por defecto que usa hugin/mente/cerebro.py contra el
-# mismo hardware — no se elige a ciegas, ya está medido. Se cambia con
-# MIDGAROR_LLM_MODELO.
-MODELO_LOCAL_POR_DEFECTO = "qwen2.5:7b"
+# Un modelo pequeño y multilingüe: lo que cabe en Madre (GTX 1060, 6 GB de
+# VRAM, Pascal — sin FlashAttention) y entiende castellano. El mismo por
+# defecto que usa hugin/mente/cerebro.py contra el mismo hardware. Cambiado
+# el 2026-09-18 de qwen2.5:7b (nunca llegó a descargarse en Madre, y a 4.7 GB
+# en Q4_K_M deja poco margen de VRAM sin FlashAttention) a esta variante:
+# Qwen3, no Qwen2.5, y la revisión "-instruct-2507" en concreto porque NUNCA
+# activa el modo de razonamiento por defecto de Qwen3/3.5 —ese modo tiene
+# bugs abiertos en Ollama que rompen la salida estructurada (`format`) justo
+# en lo que aquí más importa: el campo `confianza`—. En Q4_K_M pesa ~2.5 GB,
+# con margen real de sobra en 6 GB. Se cambia con MIDGAROR_LLM_MODELO.
+MODELO_LOCAL_POR_DEFECTO = "qwen3:4b-instruct-2507"
 OLLAMA_POR_DEFECTO = "http://127.0.0.1:11434"
 TOPE_SEGUNDOS = 4.0
 # Con Ollama hace falta más margen, y no por descuido: en hugin/mente/
@@ -324,8 +330,13 @@ def _preguntar_ollama(frase: str) -> dict:
                      {"role": "user", "content": frase}],
         "format": ESQUEMA,
         "stream": False,
-        # Sin creatividad: esto clasifica, no escribe.
-        "options": {"temperature": 0},
+        # Sin creatividad: esto clasifica, no escribe. num_ctx fijo a
+        # proposito y no al default de Ollama: ese default se calcula segun
+        # la VRAM libre en el momento (variable, y con documentacion propia
+        # de Ollama que no siempre coincide consigo misma) — un mensaje
+        # suelto mas el esquema no necesita mucho, pero mejor no dejarlo a
+        # una heuristica que puede cambiar de version en version.
+        "options": {"temperature": 0, "num_ctx": 4096},
     }).encode("utf-8")
     peticion = urllib.request.Request(
         f"{ollama()}/api/chat", data=cuerpo,

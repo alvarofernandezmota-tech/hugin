@@ -82,8 +82,16 @@ from hugin.mente import rag
 
 MODELO_POR_DEFECTO = "claude-opus-5"
 # Un modelo pequeño y multilingüe: lo que cabe en la máquina de un negocio y
-# entiende castellano. Se cambia con GJALLARHORN_LLM_MODELO.
-MODELO_LOCAL_POR_DEFECTO = "qwen2.5:7b"
+# entiende castellano. El mismo por defecto que usa hugin/personal/entender.py
+# contra el mismo hardware (Madre: GTX 1060, 6 GB, Pascal — sin
+# FlashAttention). Cambiado el 2026-09-18 de qwen2.5:7b (nunca llegó a
+# descargarse en Madre, y a 4.7 GB en Q4_K_M deja poco margen de VRAM sin
+# FlashAttention) a esta variante: Qwen3, no Qwen2.5, y la revisión
+# "-instruct-2507" porque NUNCA activa el modo de razonamiento por defecto de
+# Qwen3/3.5 —bugs abiertos en Ollama rompen la salida estructurada (`format`)
+# con ese modo activo—. En Q4_K_M pesa ~2.5 GB, con margen real en 6 GB. Se
+# cambia con GJALLARHORN_LLM_MODELO.
+MODELO_LOCAL_POR_DEFECTO = "qwen3:4b-instruct-2507"
 OLLAMA_POR_DEFECTO = "http://127.0.0.1:11434"
 TOPE_SEGUNDOS = 4.0
 TOPE_CONSULTAS = 6          # por llamada
@@ -271,7 +279,11 @@ def _preguntar_ollama(frase: str, servicios: list[str], turnos=None,
         "format": _esquema(servicios),
         "stream": False,
         # Sin creatividad: esto clasifica, no escribe.
-        "options": {"temperature": 0},
+        # Fijo y no al default de Ollama (variable segun VRAM libre): una
+        # llamada real acumula turnos de conversacion, asi que va con el
+        # mismo margen que hugin/personal/conversar.py, no el ajustado de
+        # una clasificacion de una sola frase.
+        "options": {"temperature": 0, "num_ctx": 8192},
     }).encode("utf-8")
     peticion = urllib.request.Request(
         f"{ollama()}/api/chat", data=cuerpo,

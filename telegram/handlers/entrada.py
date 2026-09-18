@@ -8,11 +8,9 @@ from telegram.ext import ContextTypes
 
 from hugin.guardado.sincronizar import sincronizar
 from hugin.personal import fechas
+from hugin.personal.diario import escribir_entrada
 from utils.mensajes import texto_tras_comando
-from utils.midgaror import modulo
 from utils.respuestas import breve, responder, responder_si_puedo
-
-escribir_entrada = modulo("bifrost_bridge").escribir_entrada
 
 logger = logging.getLogger(__name__)
 

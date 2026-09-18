@@ -36,13 +36,13 @@ from hugin import apuntes as registro
 from hugin.guardado.sincronizar import sincronizar
 from hugin.personal import citas, habitos, tareas
 from hugin.personal import fechas as fechas_personal
+from hugin.personal.diario import organizar_texto
 from utils.inquilino import actual as inquilino_actual
 from utils.midgaror import modulo
 from utils.respuestas import breve, dia, responder, responder_si_puedo
 
 conversar = modulo("conversar")
 entender = modulo("entender")
-organizar_texto = modulo("organizar_diario").organizar_texto
 
 logger = logging.getLogger(__name__)
 

@@ -31,11 +31,6 @@ BIFROST = Path(__file__).resolve().parent.parent
 if str(BIFROST) not in sys.path:
     sys.path.insert(0, str(BIFROST))
 
-# De aquí sale DIARIO y, al importarlo, las rutas de los módulos de midgaror.
-# Antes esto estaba repetido aquí y en los ocho handlers; ahora lo pone
-# utils/midgaror.py, y las pruebas usan el mismo camino que el bot de verdad.
-from utils.midgaror import DIARIO  # noqa: E402 (necesita BIFROST en sys.path)
-
 
 def _instalar_telegram_falso() -> None:
     """Un `telegram` mínimo, suficiente para importar los handlers."""
@@ -262,12 +257,12 @@ class CasoBot(unittest.TestCase):
     """
 
     def setUp(self):
-        import organizar_diario
         from handlers import (apunte, cita, diario, entrada, habito, secciones,
                               tarea, texto)
         from hugin import apuntes as registro
         from hugin import inquilino as hugin_inquilino
         from hugin.personal import citas, habitos, tareas
+        from hugin.personal import diario as diario_cerebro
         import utils.inquilino as inquilino_actual
 
         self._tmp = tempfile.TemporaryDirectory()
@@ -291,24 +286,23 @@ class CasoBot(unittest.TestCase):
         self.agenda = _ConInquilino(citas, self.inquilino)   # citas.py, no negocio/agenda.py
         self.habitos = _ConInquilino(habitos, self.inquilino)
 
-        # La entrada del día, desde la plantilla real: si la plantilla cambia
-        # y rompe las secciones, estas pruebas lo dicen.
+        # La entrada del día, desde la plantilla real (hugin.personal.diario,
+        # no la de midgaror: si la plantilla cambia y rompe las secciones,
+        # estas pruebas lo dicen).
         self.hoy = "2026-09-05"
         self.entrada = base / f"{self.hoy}.md"
-        plantilla = (DIARIO / "plantilla.md").read_text(encoding="utf-8")
-        self.entrada.write_text(plantilla.replace("{{FECHA}}", self.hoy), encoding="utf-8")
+        self.entrada.write_text(
+            diario_cerebro.PLANTILLA.replace("{{FECHA}}", self.hoy), encoding="utf-8")
 
-        import bifrost_bridge
         # `crear` es del diario: con crear=False la ruta se calcula y no se
         # toca el disco, que es lo que usa leer_entrada para cumplir su
         # promesa de que leer nunca escribe. El doble lo acepta e ignora
         # —aqui la carpeta ya existe—, pero tiene que aceptarlo: un doble con
         # una firma distinta de la real deja pasar en verde lo que en
         # produccion revienta con TypeError.
-        for modulo in (organizar_diario, bifrost_bridge):
-            modulo.ruta_de_hoy = lambda crear=True: self.entrada
-            modulo.ruta_de_fecha = lambda fecha, crear=True: base / f"{fecha}.md"
-        self.od = organizar_diario
+        diario_cerebro.ruta_de_hoy = lambda crear=True: self.entrada
+        diario_cerebro.ruta_de_fecha = lambda fecha, crear=True: base / f"{fecha}.md"
+        self.od = diario_cerebro
 
         # handlers/menu.py comprueba el chat contra TELEGRAM_CHAT_ID. Se fija
         # al chat de las pruebas (el 1, que es el de `Actualizacion`) para que

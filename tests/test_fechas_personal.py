@@ -409,5 +409,35 @@ class TestFechaDetras(unittest.TestCase):
         self.assertEqual(fechas.fecha_detras("ayer", AHORA), ("ayer", None))
 
 
+class TestInterpretarConFranja(unittest.TestCase):
+    """`interpretar_con_franja`: como `interpretar`, con el aviso de si la
+    hora se dijo sin franja. Lo usa `personal/citas.py` para no guardar una
+    cita a las 05:00 sin que quien la apunta se dé cuenta.
+    """
+
+    def test_hora_suelta_antes_de_mediodia_queda_sin_franja(self):
+        self.assertEqual(
+            fechas.interpretar_con_franja("médico mañana a las 5", AHORA),
+            ("2026-09-05", "05:00", "médico", True))
+
+    def test_hora_de_las_doce_en_adelante_no_hace_falta_franja(self):
+        self.assertEqual(
+            fechas.interpretar_con_franja("médico mañana a las 17", AHORA),
+            ("2026-09-05", "17:00", "médico", False))
+
+    def test_franja_pegada_a_la_hora_la_acota(self):
+        self.assertEqual(
+            fechas.interpretar_con_franja("médico mañana a las 5 de la tarde", AHORA),
+            ("2026-09-05", "17:00", "médico", False))
+
+    def test_sin_hora_no_hay_nada_que_confirmar(self):
+        self.assertEqual(
+            fechas.interpretar_con_franja("médico pasado mañana", AHORA),
+            ("2026-09-06", None, "médico", False))
+
+    def test_sin_fecha_ni_hora_es_none(self):
+        self.assertIsNone(fechas.interpretar_con_franja("comprar el pan", AHORA))
+
+
 if __name__ == "__main__":
     unittest.main()

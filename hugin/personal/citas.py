@@ -36,7 +36,7 @@ from pathlib import Path
 
 from hugin.guardado import almacen
 from hugin.personal import fechas
-from hugin.personal.fechas import interpretar, normalizar
+from hugin.personal.fechas import interpretar, interpretar_con_franja, normalizar
 
 FORMATO_FECHA = "%Y-%m-%d %H:%M"
 DURACION_POR_DEFECTO = 60  # minutos
@@ -125,15 +125,20 @@ def agregar(texto: str, inq=None, ahora: datetime | None = None,
 
     El aviso de choque no impide guardarla: dos cosas a la misma hora
     pasan, y quien decide qué hacer es el inquilino, no el programa.
+
+    Si la hora se dijo sin franja («médico mañana a las 5»), la cita se
+    guarda igual —a las 05:00— pero marcada con `sin_franja: true`: no se
+    rechaza, porque aquí quien apunta y quien confirma es la misma persona
+    y puede corregirlo luego con `confirmar_hora()`.
     """
     if not texto.strip():
         raise ValueError("la cita no puede estar vacía")
-    encontrado = interpretar(texto, ahora, hacia_atras=False)
+    encontrado = interpretar_con_franja(texto, ahora, hacia_atras=False)
     if not encontrado:
         raise ValueError(
             "una cita necesita cuándo es: prueba «médico mañana a las 10», "
             "«dentista el 15 de octubre a las 17:30»")
-    fecha, hora, resto = encontrado
+    fecha, hora, resto, sin_franja = encontrado
     citas = cargar(inq)
     nueva = {
         "id": max((c["id"] for c in citas), default=0) + 1,
@@ -143,10 +148,30 @@ def agregar(texto: str, inq=None, ahora: datetime | None = None,
         "duracion": duracion or DURACION_POR_DEFECTO,
         "creada": (ahora or fechas.ahora()).strftime(FORMATO_FECHA),
     }
+    if sin_franja:
+        nueva["sin_franja"] = True
     solapan = choques(nueva, citas)
     citas.append(nueva)
     guardar(citas, inq)
     return nueva, solapan
+
+
+def confirmar_hora(id_cita: int, hora: str, inq=None) -> dict:
+    """Fija la hora de una cita que se guardó `sin_franja` y quita la marca.
+
+    `hora` es `'HH:MM'` a pelo, no texto libre: quien confirma ya sabe la
+    hora exacta —se la acaban de leer, «a las 5, ¿de la tarde?»—, así que
+    no hay que volver a interpretarla.
+    """
+    h, _, m = hora.partition(":")
+    if not h.isdigit() or not m.isdigit() or not (0 <= int(h) <= 23 and 0 <= int(m) <= 59):
+        raise ValueError(f"hora no válida: {hora!r} (formato HH:MM)")
+    citas = cargar(inq)
+    cita = _buscar(citas, id_cita)
+    cita["hora"] = f"{int(h):02d}:{int(m):02d}"
+    cita.pop("sin_franja", None)
+    guardar(citas, inq)
+    return cita
 
 
 def mover(id_cita: int, cuando: str, inq=None, ahora: datetime | None = None) -> tuple[dict, list[dict]]:
@@ -190,6 +215,8 @@ def de_la_semana(fecha: str | None = None, inq=None) -> list[dict]:
 def linea(c: dict, con_fecha: bool = False) -> str:
     cuando = f"{c['fecha']} " if con_fecha else ""
     cuando += c["hora"] if c.get("hora") else "todo el día"
+    if c.get("sin_franja"):
+        cuando += " (¿mañana o tarde?)"
     return f"  📅 [{c['id']}] {cuando} · {c['texto']}"
 
 

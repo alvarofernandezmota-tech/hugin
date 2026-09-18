@@ -212,21 +212,14 @@ def hoy():
     return ahora().date().isoformat()
 
 
-def interpretar(texto, ahora=None, hacia_atras=False):
-    """Extrae fecha y hora de un texto en español.
+def _interpretar_core(texto, ahora=None, hacia_atras=False):
+    """El trabajo de `interpretar`, más si la hora quedó sin franja.
 
-    Devuelve `(fecha_iso, hora, resto)` donde `fecha_iso` es `'AAAA-MM-DD'`,
-    `hora` es `'HH:MM'` o `None` si el texto no dice ninguna, y `resto` es lo
-    que queda del texto al quitarle la expresión temporal. Devuelve `None`
-    —no una fecha inventada— si el texto no menciona ni fecha ni hora.
-
-    `ahora` es la referencia desde la que se resuelve lo relativo; por defecto,
-    el momento actual en `Europe/Madrid`. Se acepta un `datetime` sin zona
-    para poder fijarlo en las pruebas.
-
-    `hacia_atras` resuelve lo ambiguo («el lunes», «el 4 de septiembre») al
-    último que pasó en vez de al próximo. Lo explícito («mañana», «en 3 días»)
-    no cambia.
+    Devuelve `(fecha_iso, hora, resto, acotada)`, con `acotada` a `True`
+    cuando no hay duda de si la hora es de mañana o de tarde: porque se dijo
+    la franja, o porque ya son las 12 o más. Sin hora, `acotada` es `True`
+    (no hay nada que confirmar). Existe separado de `interpretar` para no
+    cambiarle la firma a quien ya la desempaqueta en tres.
     """
     if not texto or not texto.strip():
         return None
@@ -237,6 +230,7 @@ def interpretar(texto, ahora=None, hacia_atras=False):
     ocupados = []
 
     fecha = hora = None
+    acotada = True
 
     clave_hora, m_hora = _buscar(PATRONES_HORA, plano, ocupados)
     if m_hora:
@@ -256,12 +250,18 @@ def interpretar(texto, ahora=None, hacia_atras=False):
         if h < 24 and minutos < 60:
             hora = f"{h:02d}:{minutos:02d}"
             ocupados.append((m_hora.start(), fin))
+            acotada = bool(sufijo) or h >= 12
 
     clave_franja, m_franja = _buscar(PATRONES_FRANJA, plano, ocupados)
     if m_franja:
         ocupados.append((m_franja.start(), m_franja.end()))
         if hora is None:
             hora = f"{FRANJAS[m_franja.group(1)]:02d}:00"
+            acotada = True
+        elif not acotada:
+            # «a las cinco, por la tarde»: la franja no va pegada a la hora,
+            # pero la acota igual que si fuera un sufijo.
+            acotada = True
         if clave_franja == "hoy":
             fecha = base
 
@@ -275,7 +275,45 @@ def interpretar(texto, ahora=None, hacia_atras=False):
     if fecha is None and hora is None:
         return None
 
-    return (fecha or base).isoformat(), hora, _limpiar(texto, ocupados)
+    return (fecha or base).isoformat(), hora, _limpiar(texto, ocupados), acotada
+
+
+def interpretar(texto, ahora=None, hacia_atras=False):
+    """Extrae fecha y hora de un texto en español.
+
+    Devuelve `(fecha_iso, hora, resto)` donde `fecha_iso` es `'AAAA-MM-DD'`,
+    `hora` es `'HH:MM'` o `None` si el texto no dice ninguna, y `resto` es lo
+    que queda del texto al quitarle la expresión temporal. Devuelve `None`
+    —no una fecha inventada— si el texto no menciona ni fecha ni hora.
+
+    `ahora` es la referencia desde la que se resuelve lo relativo; por defecto,
+    el momento actual en `Europe/Madrid`. Se acepta un `datetime` sin zona
+    para poder fijarlo en las pruebas.
+
+    `hacia_atras` resuelve lo ambiguo («el lunes», «el 4 de septiembre») al
+    último que pasó en vez de al próximo. Lo explícito («mañana», «en 3 días»)
+    no cambia.
+    """
+    encontrado = _interpretar_core(texto, ahora, hacia_atras)
+    return None if encontrado is None else encontrado[:3]
+
+
+def interpretar_con_franja(texto, ahora=None, hacia_atras=False):
+    """Como `interpretar`, más si la hora dicha quedó sin franja.
+
+    Devuelve `(fecha_iso, hora, resto, sin_franja)`. `sin_franja` es `True`
+    cuando hay hora y esa hora no vino acotada por «de la tarde», «por la
+    mañana»… ni por sí sola —«a las 17» no necesita franja—. Es lo que
+    `personal/citas.py` usa para no citar a nadie a las 05:00 de una cita
+    pensada para las 17:00. Con la regla del negocio por teléfono
+    (`mente/fechas.py`), no con la del diario: aquí lo ambiguo se acepta y se
+    confirma después, no se rechaza.
+    """
+    encontrado = _interpretar_core(texto, ahora, hacia_atras)
+    if encontrado is None:
+        return None
+    fecha, hora, resto, acotada = encontrado
+    return fecha, hora, resto, (hora is not None and not acotada)
 
 
 

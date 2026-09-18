@@ -66,8 +66,8 @@ class TestCita(CasoBot):
         self._cita("gestoría", "el", "15", "de", "octubre", "a", "las", "9")
         dia = self.enviar(comando_agenda, "2026-10-15").splitlines()
         self.assertEqual(dia[0], "Citas del 2026-10-15:")
-        self.assertIn("[2] 09:00 · gestoría", dia[1])   # por hora, no por id
-        self.assertIn("[1] 10:00 · médico", dia[2])
+        self.assertIn("[2] 09:00 (¿mañana o tarde?) · gestoría", dia[1])   # por hora, no por id
+        self.assertIn("[1] 10:00 (¿mañana o tarde?) · médico", dia[2])
         semana = self.enviar(comando_agenda, "semana", "2026-10-15")
         self.assertIn("Citas del 2026-10-15 al 2026-10-21:", semana)
         self.assertIn("2026-10-15:", semana)

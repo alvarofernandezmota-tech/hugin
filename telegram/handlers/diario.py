@@ -6,13 +6,11 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from hugin.guardado.sincronizar import sincronizar
+from hugin.personal import fechas
+from hugin.personal.diario import organizar_texto
 from utils.mensajes import texto_tras_comando
-from utils.midgaror import modulo
 from utils.respuestas import breve, dia, responder, responder_si_puedo
-
-fechas = modulo("fechas")
-organizar_texto = modulo("organizar_diario").organizar_texto
-sincronizar = modulo("sincronizar").sincronizar
 
 logger = logging.getLogger(__name__)
 

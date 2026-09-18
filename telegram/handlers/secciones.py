@@ -5,8 +5,8 @@ De las cuatro secciones de la plantilla, «Qué ha pasado hoy» está rellena el
 la disciplina: es que en la primera escribe el bot y en las otras hay que
 abrir un editor (ADR-012, apartado 5). Estos tres comandos igualan eso.
 
-Como el resto de bifrost, esto es solo interfaz: quién escribe dónde y con
-qué formato lo decide `organizar_diario.SECCIONES` en midgaror.
+Esto es solo interfaz: quién escribe dónde y con qué formato lo decide
+`hugin.personal.diario.SECCIONES` (el cerebro, ADR-024 fase 5).
 """
 
 import asyncio
@@ -15,17 +15,15 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from hugin.guardado.sincronizar import sincronizar
+from hugin.personal import fechas
+from hugin.personal.diario import organizar_texto
 from utils.mensajes import texto_tras_comando
-from utils.midgaror import modulo
 from utils.respuestas import breve, responder, responder_si_puedo
-
-fechas = modulo("fechas")
-organizar_texto = modulo("organizar_diario").organizar_texto
-sincronizar = modulo("sincronizar").sincronizar
 
 logger = logging.getLogger(__name__)
 
-# comando -> (clave de sección en midgaror, cómo se confirma, ejemplo de uso)
+# comando -> (clave de sección en hugin.personal.diario, confirmación, ejemplo)
 DESTINOS = {
     "siento": ("siento", "💬 Apuntado en «Cómo me siento»",
                "/siento hoy estoy contento, he dormido bien"),

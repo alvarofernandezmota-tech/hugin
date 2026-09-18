@@ -1,10 +1,9 @@
 """Handlers de /habito y /habitos.
 
 La lógica vive en `hugin.personal.habitos` (el cerebro, ADR-024 fase 4),
-igual que /tarea con tareas. `fechas` sigue siendo el parser de midgaror
-—vía `utils.midgaror`— solo para partir el mensaje en (nombre, valor,
-fecha); es el mismo parser que `hugin.personal.fechas` (copia byte a
-byte), así que no cambia ni una respuesta.
+igual que /tarea con tareas. `fechas` también es del cerebro
+(`hugin.personal.fechas`), solo para partir el mensaje en (nombre, valor,
+fecha).
 """
 
 import asyncio
@@ -14,13 +13,10 @@ import re
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from hugin.personal import habitos
 from hugin.guardado.sincronizar import sincronizar
+from hugin.personal import fechas, habitos
 from utils.inquilino import actual as inquilino_actual
-from utils.midgaror import modulo
 from utils.respuestas import breve, responder, responder_si_puedo
-
-fechas = modulo("fechas")
 
 logger = logging.getLogger(__name__)
 

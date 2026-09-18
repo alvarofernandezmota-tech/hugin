@@ -1,9 +1,8 @@
 """Handler de /hoy: el día de un vistazo, sin escribir nada.
 
-Junta la entrada del diario —todavía en midgaror, la prosa se queda en
-ficheros (ADR-024)— con las citas, tareas y hábitos del cerebro
-(`hugin.personal`, fase 4). Leer nunca escribe: si no hay entrada del
-día, lo dice en vez de crearla.
+Junta la entrada del diario con las citas, tareas y hábitos — todo ya en el
+cerebro (`hugin.personal`, ADR-024 fases 4 y 5). Leer nunca escribe: si no
+hay entrada del día, lo dice en vez de crearla.
 """
 
 import logging
@@ -11,13 +10,10 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from hugin.personal import citas, habitos, tareas
+from hugin.personal import citas, fechas, habitos, tareas
+from hugin.personal.diario import leer_entrada
 from utils.inquilino import actual as inquilino_actual
-from utils.midgaror import modulo
 from utils.respuestas import responder, responder_si_puedo
-
-fechas = modulo("fechas")
-leer_entrada = modulo("bifrost_bridge").leer_entrada
 
 logger = logging.getLogger(__name__)
 

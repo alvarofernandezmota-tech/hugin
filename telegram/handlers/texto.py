@@ -33,17 +33,16 @@ from telegram.ext import ContextTypes
 
 from handlers.apunte import cuanto
 from hugin import apuntes as registro
+from hugin.guardado.sincronizar import sincronizar
 from hugin.personal import citas, habitos, tareas
 from hugin.personal import fechas as fechas_personal
+from hugin.personal.diario import organizar_texto
 from utils.inquilino import actual as inquilino_actual
 from utils.midgaror import modulo
 from utils.respuestas import breve, dia, responder, responder_si_puedo
 
 conversar = modulo("conversar")
 entender = modulo("entender")
-fechas = modulo("fechas")
-organizar_texto = modulo("organizar_diario").organizar_texto
-sincronizar = modulo("sincronizar").sincronizar
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +184,7 @@ async def procesar(update: Update, texto: str) -> None:
     # «cené con mi hermana ayer» va al día de ayer, sin el «ayer». Solo el
     # pasado sin ambigüedad cuenta (fechas.fecha_detras): «tengo examen
     # mañana» es una frase de hoy y se queda entera.
-    texto, fecha = fechas.fecha_detras(texto)
+    texto, fecha = fechas_personal.fecha_detras(texto)
     try:
         ruta = organizar_texto(texto, fecha=fecha)
         subido = await _subir(ruta, None)

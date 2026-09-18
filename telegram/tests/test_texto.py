@@ -78,7 +78,7 @@ class TestSeEnrutaConAltaConfianza(CasoBot):
                                       cuando="2026-09-05", confianza="alta")
         respuesta = self.texto_libre("tele 3h")
         self.assertIn("📝", respuesta)
-        apuntes = self.registro.del_dia("2026-09-05")
+        apuntes = self.registro.del_dia("2026-09-05", inq=self.inquilino)
         self.assertEqual(apuntes, [{"fecha": "2026-09-05", "que": "tele", "valor": 3, "unidad": "h"}])
         self.assertEqual(self.seccion(HOY), "")
 

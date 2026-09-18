@@ -238,9 +238,11 @@ class CasoBot(unittest.TestCase):
         import habitos
         import organizar_diario
         import tareas
-        import registro
         from handlers import (apunte, cita, diario, entrada, habito, secciones,
                               tarea, texto)
+        from hugin import apuntes as registro
+        from hugin import inquilino as hugin_inquilino
+        import utils.inquilino as inquilino_actual
 
         self._tmp = tempfile.TemporaryDirectory()
         base = Path(self._tmp.name)
@@ -249,10 +251,19 @@ class CasoBot(unittest.TestCase):
         tareas.RUTA_DATOS = base / "tareas.json"
         agenda.RUTA_DATOS = base / "agenda.json"
         habitos.RUTA_DATOS = base / "habitos.json"
-        # registro guarda en dos ficheros: los apuntes y los objetivos.
-        registro.RUTA_DATOS = base / "registro.json"
-        registro.RUTA_OBJETIVOS = base / "objetivos.json"
         self.tareas, self.agenda, self.habitos = tareas, agenda, habitos
+
+        # apunte.py ya vive en el cerebro (ADR-024, fase 5): guarda contra un
+        # Inquilino, no contra una RUTA_DATOS suelta. Uno de mentira, sin
+        # inquilino.toml —la carpeta ya declara lo que sabe hacer con lo que
+        # tiene dentro, igual que un negocio sin negocio.toml.
+        carpeta_inquilino = base / "inquilino"
+        carpeta_inquilino.mkdir()
+        self.inquilino = hugin_inquilino.Inquilino(
+            nombre="prueba", ruta=carpeta_inquilino,
+            capacidades=frozenset({"apuntes"}), base=None)
+        inquilino_actual._actual = self.inquilino
+        self.addCleanup(inquilino_actual._reiniciar)
         self.registro = registro
 
         # La entrada del día, desde la plantilla real: si la plantilla cambia

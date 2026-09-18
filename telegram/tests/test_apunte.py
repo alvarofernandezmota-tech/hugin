@@ -1,9 +1,10 @@
 """Pruebas de /apunte, /dia y /semana.
 
-Los tres son la cara en Telegram de midgaror/diario/registro/registro.py, el
-modelo del ADR-012. Lo que se prueba aquí es la cara: que el comando entienda
-lo que escribe Álvaro desde el móvil y que el resumen se lea bien. Que la
-suma esté bien ya lo prueba diario/tests/test_registro.py.
+Los tres son la cara en Telegram de `hugin.apuntes`, el modelo del ADR-012
+portado al cerebro en la fase 4 del ADR-024. Lo que se prueba aquí es la
+cara: que el comando entienda lo que escribe Álvaro desde el móvil y que el
+resumen se lea bien. Que la suma esté bien ya lo prueba
+`hugin/tests/test_apuntes.py`.
 """
 
 import sys
@@ -37,7 +38,7 @@ DOMINGO = LUNES + timedelta(days=6)
 
 class TestApunte(CasoBot):
     def apuntes(self):
-        return self.registro.cargar()
+        return self.registro.cargar(inq=self.inquilino)
 
     def test_algo_sin_cantidad_es_hecho(self):
         self.assertIn("📝 deporte", self.enviar(comando_apunte, "deporte"))

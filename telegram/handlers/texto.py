@@ -32,6 +32,8 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from handlers.apunte import cuanto
+from hugin import apuntes as registro
+from utils.inquilino import actual as inquilino_actual
 from utils.midgaror import modulo
 from utils.respuestas import breve, dia, responder, responder_si_puedo
 
@@ -41,7 +43,6 @@ entender = modulo("entender")
 fechas = modulo("fechas")
 habitos = modulo("habitos")
 organizar_texto = modulo("organizar_diario").organizar_texto
-registro = modulo("registro")
 sincronizar = modulo("sincronizar").sincronizar
 tareas = modulo("tareas")
 
@@ -127,8 +128,9 @@ async def _enrutar(update: Update, e) -> None:
     elif e.intencion == "apunte":
         if not e.nombre:
             raise ValueError("apunte sin nombre")
-        apunte = registro.apuntar(e.nombre, valor=e.valor, unidad=e.unidad, fecha=e.cuando)
-        subido = await _subir(registro.RUTA_DATOS, "diario: apuntes desde bifrost")
+        inq = inquilino_actual()
+        apunte = registro.apuntar(e.nombre, valor=e.valor, unidad=e.unidad, fecha=e.cuando, inq=inq)
+        subido = await _subir(inq.ruta / registro.FICHERO, f"apuntes: {inq.nombre}")
         await responder(update, f"📝 {apunte['que']}{cuanto(apunte)} — {apunte['fecha']} · {subido}")
     else:
         # entender() nunca debería devolver otra cosa (solo alta confianza y

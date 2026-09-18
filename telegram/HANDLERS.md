@@ -1,8 +1,9 @@
 # Handlers de Bifrost
 
-Un handler traduce el mensaje de Telegram a una llamada a midgaror y la
-respuesta a texto. **Ninguna lógica vive aquí** (ADR-009): lo que decide qué
-se guarda y cómo está en `midgaror/diario/`, con sus pruebas.
+Un handler traduce el mensaje de Telegram a una llamada al cerebro (`hugin`)
+o a midgaror, según el comando, y la respuesta a texto. **Ninguna lógica vive
+aquí** (ADR-009): lo que decide qué se guarda y cómo está en `hugin/personal/`
+o en `midgaror/diario/`, cada uno con sus pruebas.
 
 Todos siguen el mismo patrón: `AYUDA` con los usos, `try` alrededor de la
 llamada, `ValueError` → `⚠️ <mensaje>` (error del usuario, se le dice qué
@@ -18,31 +19,46 @@ el bot deja de responder **a todos los chats** mientras dura, no solo a quien
 mandó el mensaje. `to_thread` lo saca a un hilo aparte y el bucle sigue
 atendiendo lo demás. Un handler nuevo que escriba algo tiene que hacerlo igual.
 
-## Cómo se importa midgaror
+## Cómo se importa lo que no es de aquí
 
-Por [`utils/midgaror.py`](utils/midgaror.py), y solo por ahí:
+Dos caminos, según de qué lado vive lo que hace falta (ADR-024).
+
+**El cerebro (`hugin`)**, para tareas, citas, hábitos, apuntes, `/hoy` y los
+recordatorios — imports normales, porque `requirements.txt` instala `hugin`
+en editable (`-e ..`):
+
+```python
+from hugin.personal import tareas, citas, habitos
+from hugin.guardado.sincronizar import sincronizar
+from utils.inquilino import actual as inquilino_actual
+```
+
+**El diario en prosa**, que sigue siendo de midgaror (`/diario`, `/entrada`,
+`/siento`/`/aprendo`/`/plan`, y lo que `texto.py` no reconoce como tarea,
+cita, hábito o apunte) — por [`utils/midgaror.py`](utils/midgaror.py), y solo
+por ahí:
 
 ```python
 from utils.midgaror import modulo
-from utils.respuestas import breve, responder
 
-tareas = modulo("tareas")
+organizar_texto = modulo("organizar_diario").organizar_texto
 sincronizar = modulo("sincronizar").sincronizar
 ```
 
-Bifrost es un submódulo dentro de midgaror y no se instala, así que el diario
-se importa por ruta. Antes cada handler repetía el mismo preámbulo —subir
-cuatro niveles con `Path(__file__).resolve()`, uno o dos `sys.path.insert`, y
-los imports con `# noqa: E402` por quedar debajo de código—: ocho ficheros con
-las mismas líneas y ningún sitio donde arreglarlo una vez. Ahora lo hace
-`utils/midgaror.py` al importarse, y no queda ni un `# noqa: E402` en
-`handlers/`.
+Antes esto era el único camino, y cada handler repetía el mismo preámbulo
+—subir cuatro niveles con `Path(__file__).resolve()`, uno o dos
+`sys.path.insert`, y los imports con `# noqa: E402` por quedar debajo de
+código—: ocho ficheros con las mismas líneas y ningún sitio donde arreglarlo
+una vez. Ahora lo hace `utils/midgaror.py` al importarse, y no queda ni un
+`# noqa: E402` en `handlers/`. `MIDGAROR_RAIZ` dice dónde está midgaror; sin
+ella no arranca (ver el README, «Dónde tiene que vivir este repo»).
 
 Lo que sale de `modulo(...)` se asigna a un **nombre de módulo**, nunca dentro
-de una función. Es lo que permite que `tests/dobles.py` sustituya `sincronizar`
-handler por handler para que las pruebas no hagan `git push` de verdad; si se
-importara dentro de la corrutina, ese doble dejaría de aplicarse y las pruebas
-empezarían a escribir en el repo.
+de una función, igual que los imports directos de `hugin`. Es lo que permite
+que `tests/dobles.py` sustituya `sincronizar` handler por handler para que las
+pruebas no hagan `git push` de verdad; si se importara dentro de la
+corrutina, ese doble dejaría de aplicarse y las pruebas empezarían a escribir
+en el repo.
 
 ---
 
@@ -131,12 +147,17 @@ es lo que pasó el 2026-09-05 treinta veces seguidas.
 
 Antes de ir al diario, se le pregunta a `entender()` si en realidad es una
 tarea, un hábito, una cita o un apunte. Con alta confianza, va a la misma
-función que su comando —`tareas.agregar`, `agenda.agregar`, `habitos.marcar`,
+función que su comando —`hugin.personal.tareas.agregar`,
+`hugin.personal.citas.agregar`, `hugin.personal.habitos.marcar`,
 `hugin.apuntes.apuntar`— y contesta con la misma confirmación que daría ese
-comando. Con cualquier duda, sin `ANTHROPIC_API_KEY` puesta, o si la propia
-frase es un diario de verdad, cae aquí abajo exactamente como siempre: esto
-no puede hacer que un mensaje se pierda, en el peor caso dejar de reconocer
-algo que antes tampoco reconocía nadie.
+comando. La fecha, si `entender()` la trae en español («ayer», «el lunes»),
+se resuelve primero con `hugin.personal.fechas.normalizar()`: pasarla en
+crudo revienta dentro del `except` y el apunte cae al diario en silencio, que
+es el fallo que costó encontrar la primera vez. Con cualquier duda, sin
+`ANTHROPIC_API_KEY` puesta, o si la propia frase es un diario de verdad, cae
+aquí abajo exactamente como siempre: esto no puede hacer que un mensaje se
+pierda, en el peor caso dejar de reconocer algo que antes tampoco reconocía
+nadie.
 
 ---
 
@@ -164,7 +185,9 @@ que no es el que contesta a `pip` cuando hay más de un Python.
 
 ## *(recordatorios: lo único que habla sin que le hablen)*
 
-**Módulo**: `handlers/recordatorios.py` → `diario/recordatorios.py`
+**Módulo**: `handlers/recordatorios.py` → `hugin.personal.recordatorios` +
+`hugin.personal.citas` (cerebro, ADR-024 fase 5 — cierra el hueco que dejó
+`/cita` al mudarse al cerebro antes que `recordatorios`)
 
 Un bucle de `asyncio` que cada minuto pregunta qué citas empiezan dentro de
 los próximos 30 minutos y no se han avisado. Arranca en `post_init` y se
@@ -209,7 +232,7 @@ La hora o la viñeta no las decide este handler: están en
 
 ## `/tarea` y `/tareas`
 
-**Módulo**: `handlers/tarea.py` → `midgaror/diario/tareas/tareas.py`
+**Módulo**: `handlers/tarea.py` → `hugin.personal.tareas` (cerebro, ADR-024 fase 5)
 
 | Mensaje | Qué hace |
 |---|---|
@@ -229,7 +252,7 @@ es añadir una línea, no otro `if`.
 
 ## `/cita` y `/agenda`
 
-**Módulo**: `handlers/cita.py` → `midgaror/diario/agenda/agenda.py`
+**Módulo**: `handlers/cita.py` → `hugin.personal.citas` (cerebro, ADR-024 fase 5)
 
 | Mensaje | Qué hace |
 |---|---|
@@ -248,7 +271,7 @@ dos cosas a la misma hora pasan, y quien decide es Álvaro.
 
 ## `/habito` y `/habitos`
 
-**Módulo**: `handlers/habito.py` → `midgaror/diario/habitos/habitos.py`
+**Módulo**: `handlers/habito.py` → `hugin.personal.habitos` (cerebro, ADR-024 fase 5)
 
 | Mensaje | Qué hace |
 |---|---|
@@ -362,7 +385,8 @@ diario **del 2026-09-05**» en vez de «de hoy».
 
 ## `/hoy`
 
-**Módulo**: `handlers/hoy.py` → `leer_entrada` + `agenda` + `tareas` + `habitos`
+**Módulo**: `handlers/hoy.py` → `leer_entrada` (midgaror) +
+`hugin.personal.{citas,tareas,habitos}` (cerebro, ADR-024 fase 5)
 
 `/hoy [ayer | el lunes | AAAA-MM-DD]` junta en un mensaje el diario del día, las citas, las
 tareas y los hábitos. **Solo lee**: si no hay entrada, lo dice en vez de

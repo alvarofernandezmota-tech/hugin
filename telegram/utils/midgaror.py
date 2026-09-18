@@ -29,9 +29,16 @@ from pathlib import Path
 
 VARIABLE = "MIDGAROR_RAIZ"
 
-# Cuando bifrost vive en midgaror/proyectos/bifrost/, la raíz está cuatro
-# niveles por encima de utils/. Sigue siendo el caso en producción, y por eso
-# es el valor por defecto: sin tocar nada, esto hace exactamente lo de antes.
+# Cuenta de cuatro `.parent` heredada de cuando este fichero vivía en
+# bifrost/utils/midgaror.py, con bifrost dentro de midgaror/proyectos/: ahí
+# sí aterrizaba en midgaror. Desde que este fichero vive en
+# hugin/telegram/utils/ (ADR-024, fase 1: "juntar el repo, sin refactorizar
+# nada"), la cuenta ya no aterriza en ningún midgaror real — aterriza un
+# nivel por encima de donde esté clonado hugin. No se ha corregido a
+# propósito: no hay todavía un sitio "de verdad" que adivinar (la fase 6 no
+# ha movido producción), y el fallback no falla en silencio — `DIARIO.is_dir()`
+# más abajo lo revienta con un aviso claro. Hasta la fase 6, `MIDGAROR_RAIZ`
+# es, en la práctica, obligatoria.
 POR_DEFECTO = Path(__file__).resolve().parent.parent.parent.parent
 
 

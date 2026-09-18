@@ -1,9 +1,9 @@
 """Handler de /hoy: el día de un vistazo, sin escribir nada.
 
-Junta lo que ya saben decir los módulos de midgaror: la entrada del diario
-(`leer_entrada`), las citas del día, las tareas pendientes y los hábitos
-apuntados. Leer nunca escribe: si no hay entrada del día, lo dice en vez de
-crearla.
+Junta la entrada del diario —todavía en midgaror, la prosa se queda en
+ficheros (ADR-024)— con las citas, tareas y hábitos del cerebro
+(`hugin.personal`, fase 4). Leer nunca escribe: si no hay entrada del
+día, lo dice en vez de crearla.
 """
 
 import logging
@@ -11,13 +11,12 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from hugin.personal import citas, habitos, tareas
+from utils.inquilino import actual as inquilino_actual
 from utils.midgaror import modulo
 from utils.respuestas import responder, responder_si_puedo
 
-agenda = modulo("agenda")
 fechas = modulo("fechas")
-habitos = modulo("habitos")
-tareas = modulo("tareas")
 leer_entrada = modulo("bifrost_bridge").leer_entrada
 
 logger = logging.getLogger(__name__)
@@ -30,6 +29,7 @@ TOPE_DIARIO = 2500
 async def comando_hoy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/hoy [ayer | el lunes | AAAA-MM-DD] — diario, citas, tareas y hábitos de ese día."""
     try:
+        inq = inquilino_actual()
         # Hacia atrás: un día se revisa después de vivirlo. «/hoy mañana»
         # sigue siendo mañana, que es explícito.
         fecha = fechas.normalizar(" ".join(context.args), hacia_atras=True) if context.args else None
@@ -38,9 +38,9 @@ async def comando_hoy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             diario = diario[:TOPE_DIARIO].rstrip() + "\n…(recortado)"
         partes = [
             "📔 Diario\n" + diario,
-            "\n📅 Citas\n" + agenda.resumen(fecha),
-            "\n📋 Tareas\n" + tareas.resumen(hoy=fecha),
-            "\n🔁 Hábitos\n" + habitos.resumen_dia(fecha),
+            "\n📅 Citas\n" + citas.resumen(fecha, inq),
+            "\n📋 Tareas\n" + tareas.resumen(inq, hoy=fecha),
+            "\n🔁 Hábitos\n" + habitos.resumen_dia(fecha, inq=inq),
         ]
         await responder(update, "\n".join(partes))
     except ValueError as e:

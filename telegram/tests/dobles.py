@@ -15,6 +15,8 @@ Se hace así a propósito, y no instalando python-telegram-bot:
 
 import asyncio
 import contextlib
+import functools
+import inspect
 import io
 import logging
 import os
@@ -226,6 +228,32 @@ class Contexto:
         self.bot = BotFalso()
 
 
+class _ConInquilino:
+    """Un módulo de `hugin.personal` con el inquilino de la prueba ya puesto.
+
+    Los handlers pasan `inq=` en cada llamada (ADR-024, fase 5); las
+    pruebas de aquí llamaban a los módulos de midgaror sin ningún `ruta=`
+    de por medio —usaban el que ponía `RUTA_DATOS`—. Esto evita reescribir
+    cada `self.tareas.cargar()` a `self.tareas.cargar(self.inquilino)` en
+    los diez ficheros que ya existían: `inq` se ata solo, por su nombre,
+    y solo en las funciones que de verdad lo llevan (`activas()` no lo
+    lleva —es una función pura sobre una lista— y pasa sin tocar).
+    """
+
+    def __init__(self, modulo, inq):
+        self._modulo = modulo
+        self._inq = inq
+
+    def __getattr__(self, nombre):
+        atributo = getattr(self._modulo, nombre)
+        if not callable(atributo):
+            return atributo
+        parametros = inspect.signature(atributo).parameters
+        if "inq" not in parametros:
+            return atributo
+        return functools.partial(atributo, inq=self._inq)
+
+
 class CasoBot(unittest.TestCase):
     """Base de las pruebas de handlers: datos en un temporal, sin git ni red.
 
@@ -234,37 +262,44 @@ class CasoBot(unittest.TestCase):
     """
 
     def setUp(self):
-        import agenda
-        import habitos
+        import agenda as agenda_vieja
         import organizar_diario
-        import tareas
         from handlers import (apunte, cita, diario, entrada, habito, secciones,
                               tarea, texto)
         from hugin import apuntes as registro
         from hugin import inquilino as hugin_inquilino
+        from hugin.personal import citas, habitos, tareas
         import utils.inquilino as inquilino_actual
 
         self._tmp = tempfile.TemporaryDirectory()
         base = Path(self._tmp.name)
         self.base = base
 
-        tareas.RUTA_DATOS = base / "tareas.json"
-        agenda.RUTA_DATOS = base / "agenda.json"
-        habitos.RUTA_DATOS = base / "habitos.json"
-        self.tareas, self.agenda, self.habitos = tareas, agenda, habitos
-
-        # apunte.py ya vive en el cerebro (ADR-024, fase 5): guarda contra un
-        # Inquilino, no contra una RUTA_DATOS suelta. Uno de mentira, sin
-        # inquilino.toml —la carpeta ya declara lo que sabe hacer con lo que
-        # tiene dentro, igual que un negocio sin negocio.toml.
+        # Los seis comandos personales ya viven en el cerebro (ADR-024,
+        # fase 5): guardan contra un Inquilino, no contra una RUTA_DATOS
+        # suelta. Uno de mentira, sin inquilino.toml —la carpeta ya declara
+        # lo que sabe hacer con lo que tiene dentro, igual que un negocio
+        # sin negocio.toml.
         carpeta_inquilino = base / "inquilino"
         carpeta_inquilino.mkdir()
         self.inquilino = hugin_inquilino.Inquilino(
             nombre="prueba", ruta=carpeta_inquilino,
-            capacidades=frozenset({"apuntes"}), base=None)
+            capacidades=frozenset({"apuntes", "tareas", "habitos", "agenda"}), base=None)
         inquilino_actual._actual = self.inquilino
         self.addCleanup(inquilino_actual._reiniciar)
         self.registro = registro
+        self.tareas = _ConInquilino(tareas, self.inquilino)
+        self.agenda = _ConInquilino(citas, self.inquilino)   # citas.py, no negocio/agenda.py
+        self.habitos = _ConInquilino(habitos, self.inquilino)
+
+        # handlers/recordatorios.py NO se toca en esta fase (ADR-024): su
+        # logica de a quien avisar sigue en diario/recordatorios.py, que
+        # lee el agenda.json de MIDGAROR, no el del inquilino. Es un hueco
+        # real entre lo que /cita escribe ahora y lo que recordatorios lee
+        # hasta que le llegue su fase; sus pruebas siguen contra este
+        # modulo viejo, aparte de self.agenda.
+        agenda_vieja.RUTA_DATOS = base / "agenda-vieja.json"
+        self.agenda_vieja = agenda_vieja
 
         # La entrada del día, desde la plantilla real: si la plantilla cambia
         # y rompe las secciones, estas pruebas lo dicen.

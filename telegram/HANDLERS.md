@@ -1,9 +1,10 @@
 # Handlers de Bifrost
 
 Un handler traduce el mensaje de Telegram a una llamada al cerebro (`hugin`)
-o a midgaror, según el comando, y la respuesta a texto. **Ninguna lógica vive
-aquí** (ADR-009): lo que decide qué se guarda y cómo está en `hugin/personal/`
-o en `midgaror/diario/`, cada uno con sus pruebas.
+y la respuesta a texto. **Ninguna lógica vive aquí** (ADR-009): lo que decide
+qué se guarda y cómo está en `hugin/personal/` y en `hugin/apuntes.py`, cada
+uno con sus propias pruebas — todo en este mismo repo desde que se cerró la
+fase 5 del ADR-024 (ver «Cómo se importa lo que no es de aquí», abajo).
 
 Todos siguen el mismo patrón: `AYUDA` con los usos, `try` alrededor de la
 llamada, `ValueError` → `⚠️ <mensaje>` (error del usuario, se le dice qué
@@ -21,22 +22,24 @@ atendiendo lo demás. Un handler nuevo que escriba algo tiene que hacerlo igual.
 
 ## Cómo se importa lo que no es de aquí
 
-Dos caminos, según de qué lado vive lo que hace falta (ADR-024).
-
-**El cerebro (`hugin`)**, para tareas, citas, hábitos, apuntes, `/hoy` y los
-recordatorios — imports normales, porque `requirements.txt` instala `hugin`
+Un solo camino (ADR-024): todo lo que no es de aquí viene del cerebro
+(`hugin`), con imports normales, porque `requirements.txt` instala `hugin`
 en editable (`-e ..`):
 
 ```python
 from hugin.personal import tareas, citas, habitos
+from hugin.personal.diario import organizar_texto, escribir_entrada
 from hugin.guardado.sincronizar import sincronizar
+from hugin import apuntes as registro
 from utils.inquilino import actual as inquilino_actual
 ```
 
-**El diario en prosa**, que sigue siendo de midgaror (`/diario`, `/entrada`,
-`/siento`/`/aprendo`/`/plan`, y lo que `texto.py` no reconoce como tarea,
-cita, hábito o apunte) — por [`utils/midgaror.py`](utils/midgaror.py), y solo
-por ahí:
+**Hasta el 2026-09-18 había dos caminos.** Tareas, citas, hábitos y apuntes
+ya iban por `hugin.personal`/`hugin.apuntes` desde las fases 4 y 5 del
+ADR-024; la prosa del diario (`/diario`, `/entrada`,
+`/siento`/`/aprendo`/`/plan`, y lo que `texto.py` no reconocía como tarea,
+cita, hábito o apunte) seguía viviendo en midgaror, y se importaba por
+`utils/midgaror.py` y solo por ahí:
 
 ```python
 from utils.midgaror import modulo
@@ -45,20 +48,26 @@ organizar_texto = modulo("organizar_diario").organizar_texto
 sincronizar = modulo("sincronizar").sincronizar
 ```
 
-Antes esto era el único camino, y cada handler repetía el mismo preámbulo
-—subir cuatro niveles con `Path(__file__).resolve()`, uno o dos
-`sys.path.insert`, y los imports con `# noqa: E402` por quedar debajo de
-código—: ocho ficheros con las mismas líneas y ningún sitio donde arreglarlo
-una vez. Ahora lo hace `utils/midgaror.py` al importarse, y no queda ni un
-`# noqa: E402` en `handlers/`. `MIDGAROR_RAIZ` dice dónde está midgaror; sin
-ella no arranca (ver el README, «Dónde tiene que vivir este repo»).
+Ese fichero **ya no existe**. La fase 5 del ADR-024 portó
+`diario/organizar_diario.py` y `diario/bifrost_bridge.py` de midgaror a
+`hugin/personal/diario.py` —fundidos en un único módulo, sin lógica
+duplicada— y con eso se cerró la fase entera: ya no queda ningún handler que
+importe nada de otro repo, y `utils/midgaror.py` se borró el mismo día en
+que dejó de tener un solo import apuntándole.
 
-Lo que sale de `modulo(...)` se asigna a un **nombre de módulo**, nunca dentro
-de una función, igual que los imports directos de `hugin`. Es lo que permite
-que `tests/dobles.py` sustituya `sincronizar` handler por handler para que las
-pruebas no hagan `git push` de verdad; si se importara dentro de la
-corrutina, ese doble dejaría de aplicarse y las pruebas empezarían a escribir
-en el repo.
+Antes de que existiera `utils/midgaror.py`, el preámbulo de arriba —subir
+cuatro niveles con `Path(__file__).resolve()`, uno o dos
+`sys.path.insert`, y los imports con `# noqa: E402` por quedar debajo de
+código— lo repetía cada handler a mano: ocho ficheros con las mismas líneas
+y ningún sitio donde arreglarlo una vez. Hoy no queda ni un `# noqa: E402`
+en `handlers/`.
+
+Lo que sale de `hugin.personal`/`hugin.apuntes` se asigna a un **nombre de
+módulo o de función al nivel del fichero**, nunca dentro de una función,
+igual que antes con `modulo(...)`. Es lo que permite que `tests/dobles.py`
+sustituya `sincronizar` handler por handler para que las pruebas no hagan
+`git push` de verdad; si se importara dentro de la corrutina, ese doble
+dejaría de aplicarse y las pruebas empezarían a escribir en el repo.
 
 ---
 
@@ -113,7 +122,7 @@ Dos cosas que no se ven y hay que saber:
 ## `/diario <texto>`
 
 **Módulo**: `handlers/diario.py` → `organizar_texto()` de
-`midgaror/diario/organizar_diario.py`
+`hugin/personal/diario.py`
 
 Inserta el texto en «Qué ha pasado hoy» de la entrada de hoy, con la hora
 delante, sin pisar lo que ya hubiera.
@@ -123,7 +132,8 @@ delante, sin pisar lo que ya hubiera.
 ## `/entrada <día> <texto>`
 
 **Módulo**: `handlers/entrada.py` → `escribir_entrada()` de
-`midgaror/diario/bifrost_bridge.py`
+`hugin/personal/diario.py` — una capa fina sobre `organizar_texto()`, con
+`fecha` (ver el docstring del módulo, «Por qué esto no lleva `inq=`»)
 
 Lo mismo, en el día que se diga. Crea la entrada si no existe.
 
@@ -131,8 +141,9 @@ Lo mismo, en el día que se diga. Crea la entrada si no existe.
 
 ## *(texto sin comando)*
 
-**Módulo**: `handlers/texto.py` → primero `diario/entender.py`; si no dice
-nada, lo mismo que `/diario`
+**Módulo**: `handlers/texto.py` → primero `entender.es_saludo()`; si no,
+`hugin.personal.entender()`; si tampoco dice nada, lo mismo que `/diario`
+(`hugin.personal.diario.organizar_texto`)
 
 Se registra **el último** en `bot.py`, con `filters.TEXT & ~filters.COMMAND`,
 así que los comandos mandan. Escribir sin comando es lo normal: es como se usa
@@ -145,7 +156,18 @@ lo que empiece por `/` con un aviso, y lo devuelve para poder reenviarlo. La
 alternativa —escribirlo en el diario— es tragarse un comando en silencio, que
 es lo que pasó el 2026-09-05 treinta veces seguidas.
 
-Antes de ir al diario, se le pregunta a `entender()` si en realidad es una
+**Antes de nada, `es_saludo()` mira si el mensaje entero es un saludo o una
+muletilla** («hola», «gracias», «vale»…) y, si lo es, contesta con un aviso y
+no apunta nada. Va antes de `entender()` a propósito: ni hace falta LLM, ni
+tiene sentido pagar la llamada, para saber que «hola» no es una entrada de
+diario. Sin este chequeo, un saludo suelto se escribía tal cual como entrada
+—comprobado en Madre el 2026-09-18, el mismo día que se cerró la fase 5 del
+ADR-024— porque nada de lo que viene después distingue «esto no es nada
+reconocible, y tampoco parece diario de verdad» de «esto es diario»: la
+propia instrucción del LLM dice «ante la duda, diario», y antes de
+`es_saludo()` un «hola» caía justo en esa duda.
+
+Si no es un saludo, se le pregunta a `entender()` si en realidad es una
 tarea, un hábito, una cita o un apunte. Con alta confianza, va a la misma
 función que su comando —`hugin.personal.tareas.agregar`,
 `hugin.personal.citas.agregar`, `hugin.personal.habitos.marcar`,
@@ -154,10 +176,10 @@ comando. La fecha, si `entender()` la trae en español («ayer», «el lunes»),
 se resuelve primero con `hugin.personal.fechas.normalizar()`: pasarla en
 crudo revienta dentro del `except` y el apunte cae al diario en silencio, que
 es el fallo que costó encontrar la primera vez. Con cualquier duda, sin
-`ANTHROPIC_API_KEY` puesta, o si la propia frase es un diario de verdad, cae
-aquí abajo exactamente como siempre: esto no puede hacer que un mensaje se
-pierda, en el peor caso dejar de reconocer algo que antes tampoco reconocía
-nadie.
+ningún motor configurado (`ANTHROPIC_API_KEY` u `Ollama`, según
+`MIDGAROR_LLM`), o si la propia frase es un diario de verdad, cae aquí abajo
+exactamente como siempre: esto no puede hacer que un mensaje se pierda, en el
+peor caso dejar de reconocer algo que antes tampoco reconocía nadie.
 
 ---
 
@@ -209,7 +231,7 @@ o en silencio:
 ## `/siento`, `/aprendo` y `/plan`
 
 **Módulo**: `handlers/secciones.py` → `organizar_texto(..., seccion=...)` de
-`midgaror/diario/organizar_diario.py`
+`hugin/personal/diario.py`
 
 | Mensaje | Va a | Cómo se ve |
 |---|---|---|
@@ -226,7 +248,7 @@ y en las otras hay que abrir un editor (ADR-012, apartado 5).
 `a-z`, `0-9` y `_`: con eñe no llegan marcados como comando.
 
 La hora o la viñeta no las decide este handler: están en
-`organizar_diario.SECCIONES`, con el resto de la lógica.
+`hugin.personal.diario.SECCIONES`, con el resto de la lógica.
 
 ---
 
@@ -310,8 +332,8 @@ sale barato: el hábito raro se ve en `/habitos` del mismo día.
 Primer comando movido del canal al cerebro, comando por comando
 ([ADR-024](https://github.com/alvarofernandezmota-tech/midgaror/blob/main/docs/adr/024-un-cerebro-dos-puertas.md),
 fase 5). El modelo viene del [ADR-012](https://github.com/alvarofernandezmota-tech/midgaror/blob/main/docs/adr/012-modelo-de-registro-diario.md),
-portado entero. La fecha la sigue resolviendo el parser de midgaror, sin
-cambiar: solo cambió dónde se guarda.
+portado entero. La fecha la sigue resolviendo el mismo parser, sin cambiar:
+solo cambió dónde se guarda.
 Un **apunte** es un evento, no una casilla: `tele 3h`, `deporte`, `agua 1,5l`.
 
 | Mensaje | Qué hace |
@@ -360,8 +382,8 @@ a mano en el fichero de objetivos del inquilino (`objetivos.json`, junto a `apun
 
 Desde el 2026-09-06 ningún comando exige `AAAA-MM-DD`: donde iba una fecha
 vale «ayer», «antes de ayer», «hace 3 días», «el lunes», «el 15 de octubre»,
-«04/09/2026» o la fecha entera. Lo resuelve `diario/fechas.py` de midgaror;
-los handlers solo le pasan el trozo que toca. Tres reglas:
+«04/09/2026» o la fecha entera. Lo resuelve `hugin.personal.fechas`; los
+handlers solo le pasan el trozo que toca. Tres reglas:
 
 | Dónde | Qué se lee | Sentido |
 |---|---|---|
@@ -385,8 +407,8 @@ diario **del 2026-09-05**» en vez de «de hoy».
 
 ## `/hoy`
 
-**Módulo**: `handlers/hoy.py` → `leer_entrada` (midgaror) +
-`hugin.personal.{citas,tareas,habitos}` (cerebro, ADR-024 fase 5)
+**Módulo**: `handlers/hoy.py` → `hugin.personal.diario.leer_entrada` +
+`hugin.personal.{citas,tareas,habitos}` (todo cerebro, ADR-024 fases 4 y 5)
 
 `/hoy [ayer | el lunes | AAAA-MM-DD]` junta en un mensaje el diario del día, las citas, las
 tareas y los hábitos. **Solo lee**: si no hay entrada, lo dice en vez de

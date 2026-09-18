@@ -31,7 +31,7 @@ $(PY):
 
 instalar: $(PY)  ## venv + el paquete en editable + ruff
 
-pruebas: $(PY)  ## TODAS las pruebas y el lint: cerebro, telegram y telefono
+pruebas: $(PY)  ## TODAS las pruebas, el lint y la auditoria estructural
 	@# Sigue hasta el final en vez de parar en el primer fallo: es mas util
 	@# ver los tres problemas de una vez que descubrirlos de uno en uno.
 	@# El interprete se llama por ruta ABSOLUTA: con `../$(PY)` desde dentro
@@ -52,10 +52,15 @@ pruebas: $(PY)  ## TODAS las pruebas y el lint: cerebro, telegram y telefono
 	echo "── lint ──"; \
 	if [ -x $(RUFF) ]; then $(RUFF) check . || fallos=$$((fallos+1)); \
 	else echo "⚠️  SIN RUFF: el lint NO se ha corrido."; fi; \
+	echo "── estructura ──"; \
+	$(PY) herramientas/auditoria.py || fallos=$$((fallos+1)); \
 	echo; \
 	if [ $$fallos -ne 0 ]; then \
 	  echo "❌ $$fallos comprobacion(es) en rojo. No subas esto."; exit 1; \
 	else echo "✅ Todo en verde."; fi
+
+auditar: $(PY)  ## solo la auditoria estructural (paquetes, workflows) — rapido
+	$(PY) herramientas/auditoria.py
 
 estado: $(PY)  ## mide las pruebas y reescribe estado-pruebas.json (el badge)
 	@# El badge dice "local" a proposito: no hay CI (Actions no coge runner
@@ -67,4 +72,4 @@ estado: $(PY)  ## mide las pruebas y reescribe estado-pruebas.json (el badge)
 	@# numero commiteado ya no es el de verdad.
 	$(PY) herramientas/estado.py
 
-.PHONY: ayuda instalar pruebas estado
+.PHONY: ayuda instalar pruebas auditar estado

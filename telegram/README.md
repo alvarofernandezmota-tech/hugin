@@ -2,6 +2,16 @@
 
 Bot de Telegram para escribir y organizar entradas del diario personal.
 
+**Nota de nombres.** El producto sigue llamándose Bifrost —así lo conoce
+Álvaro, y así habla el bot en este documento—, pero desde el corte de
+producción del 2026-09-18 el servicio de systemd que lo corre en Madre se
+llama `hugin-telegram`, no `bifrost` (ver
+[`systemd/hugin-telegram.service`](systemd/hugin-telegram.service), cuyos
+propios comentarios explican el cambio). La unidad vieja, `bifrost.service`,
+se dejó instalada y parada en Madre como vuelta atrás instantánea, pero no es
+la que corre. Todos los comandos `systemctl`/`journalctl` y las rutas de
+este documento usan el nombre de hoy.
+
 ## Estado
 
 ✅ **En producción** — corre como servicio de systemd en Madre y escribe
@@ -19,30 +29,33 @@ teoría: arrancar una segunda instancia a mano **rompe la que está corriendo**
 
 ```text
 telegram/
-├─ bot.py # Punto de entrada del bot
+├─ bot.py                   # Punto de entrada del bot
 ├─ handlers/
-│ ├─ _init_.py
-│ ├─ diario.py # /diario → organizar_texto()
-│ ├─ entrada.py # /entrada → escribir_entrada()
-│ ├─ secciones.py # /siento, /aprendo, /plan → secciones del diario
-│ ├─ tarea.py # /tarea, /tareas → hugin.personal.tareas (cerebro, ADR-024 fase 5)
-│ ├─ cita.py # /cita, /agenda → hugin.personal.citas (cerebro, ADR-024 fase 5)
-│ ├─ habito.py # /habito, /habitos → hugin.personal.habitos (cerebro, ADR-024 fase 5)
-│ ├─ hoy.py # /hoy → diario (midgaror) + citas, tareas y hábitos (cerebro)
-│ ├─ apunte.py # /apunte, /dia, /semana → hugin.apuntes (cerebro, ADR-024 fase 5)
-│ ├─ menu.py # /menu → botones que preguntan y enrutan al handler del comando
-│ ├─ texto.py # mensaje sin comando → entender() y, si no, diario de hoy
-│ ├─ voz.py # nota de voz → Whisper → el mismo camino que el texto
-│ └─ recordatorios.py # avisa de una cita sin que nadie pregunte (ADR-020)
+│  ├─ __init__.py
+│  ├─ diario.py             # /diario → hugin.personal.diario.organizar_texto
+│  ├─ entrada.py            # /entrada → hugin.personal.diario.escribir_entrada
+│  ├─ secciones.py          # /siento, /aprendo, /plan → hugin.personal.diario.organizar_texto
+│  ├─ tarea.py              # /tarea, /tareas → hugin.personal.tareas (cerebro, ADR-024 fase 5)
+│  ├─ cita.py               # /cita, /agenda → hugin.personal.citas (cerebro, ADR-024 fase 5)
+│  ├─ habito.py             # /habito, /habitos → hugin.personal.habitos (cerebro, ADR-024 fase 5)
+│  ├─ hoy.py                # /hoy → hugin.personal.diario.leer_entrada + citas/tareas/hábitos (cerebro)
+│  ├─ apunte.py             # /apunte, /dia, /semana → hugin.apuntes (cerebro, ADR-024 fase 5)
+│  ├─ menu.py               # /menu → botones que preguntan y enrutan al handler del comando
+│  ├─ texto.py              # mensaje sin comando → hugin.personal.entender() y, si no, diario de hoy
+│  ├─ voz.py                # nota de voz → Whisper → el mismo camino que el texto
+│  └─ recordatorios.py      # avisa de una cita sin que nadie pregunte (ADR-020)
 ├─ utils/
-│ ├─ auth.py # autorización por chat_id
-│ ├─ limites.py # el tope de 4096 de Telegram, contado como lo cuenta Telegram
-│ ├─ midgaror.py # dónde está midgaror y cómo se importan sus módulos
-│ ├─ respuestas.py # cómo se contesta: breve si va bien, entero si falla
-│ └─ voz.py # Whisper en local: audio → texto
+│  ├─ auth.py               # autorización por chat_id
+│  ├─ inquilino.py          # quién es el inquilino de esta copia (variable INQUILINO)
+│  ├─ limites.py            # el tope de 4096 de Telegram, contado como lo cuenta Telegram
+│  ├─ mensajes.py           # el texto tras el comando, con sus saltos de línea intactos
+│  ├─ respuestas.py         # cómo se contesta: breve si va bien, entero si falla
+│  └─ voz.py                # Whisper en local: audio → texto
+├─ systemd/
+│  └─ hugin-telegram.service # la unidad de producción (ver «Como servicio»)
 ├─ venv/ # Entorno virtual (NO commitear)
 ├─ .env # Token y chat_id (NO commitear)
-├─ .env.example # Plantilla
+├─ .env.example
 ├─ .gitignore
 ├─ AGENTS.md
 ├─ CONTEXT.md
@@ -55,27 +68,45 @@ telegram/
 
 ## Dónde tiene que vivir este repo
 
-Dos cosas de fuera hacen falta, y ya no es un submódulo ni una ruta fija.
+Nada de fuera hace falta ya: ni submódulo, ni una segunda ruta de código, ni
+un `MIDGAROR_RAIZ` que apunte a otro repo.
 
-**El cerebro (`hugin`)** lo trae este mismo repo: `telegram/` es la carpeta
-`telegram/` de `hugin`, así que `pip install -r requirements.txt` ya instala
-`hugin` en editable (ver [`requirements.txt`](requirements.txt)) y
-`from hugin.personal import citas` funciona sin tocar el `sys.path`.
+**Todo el cerebro (`hugin`) lo trae este mismo repo, diario en prosa
+incluido.** `telegram/` es la carpeta `telegram/` de `hugin`, así que
+`pip install -r requirements.txt` ya instala `hugin` en editable (ver
+[`requirements.txt`](requirements.txt)) y tanto `from hugin.personal import
+citas` como `from hugin.personal.diario import organizar_texto` funcionan
+sin tocar el `sys.path`.
 
-**El diario en prosa** —lo que todavía escriben `/diario`, `/entrada`,
-`/siento`/`/aprendo`/`/plan` y lo que no se entiende como tarea, cita, hábito
-o apunte— sigue siendo de midgaror, y [`utils/midgaror.py`](utils/midgaror.py)
-lo busca donde diga la variable `MIDGAROR_RAIZ`:
+Hasta el 2026-09-18 la prosa del diario (`/diario`, `/entrada`,
+`/siento`/`/aprendo`/`/plan`, y el texto suelto que no se reconoce como
+tarea, cita, hábito o apunte) seguía siendo de midgaror, y `utils/midgaror.py`
+la importaba en caliente contra la ruta que dijera `MIDGAROR_RAIZ`. Ese
+fichero **se ha borrado**: la fase 5 del ADR-024 portó
+`diario/organizar_diario.py` y `diario/bifrost_bridge.py` de midgaror a
+`hugin/personal/diario.py` —fundidos en un único módulo, sin lógica
+duplicada (mira su docstring)—, y ya no queda nada que importar desde otro
+repo. `MIDGAROR_RAIZ` no existe en ningún sitio del código: no hace falta
+ponerla, y ponerla no hace nada.
 
-```bash
-export MIDGAROR_RAIZ=~/GitHub/personal/midgaror-bot   # o donde tengas el diario
-```
+Lo único de fuera que sigue haciendo falta es **dónde viven los datos**, que
+no es código, sino la carpeta del inquilino — dos variables de entorno que
+no van en el `.env` (las pone quien arranca el proceso; en producción, la
+unidad de systemd, ver «Como servicio»):
 
-**Ponla siempre.** El "por defecto" sin la variable es una cuenta de cuatro
-`.parent` heredada de cuando este fichero vivía dentro de bifrost —desde que
-vive en `hugin/telegram/utils/` ya no aterriza en ningún midgaror real—, así
-que sin `MIDGAROR_RAIZ` el bot no arranca. No falla en silencio: lo dice con
-el mensaje exacto de qué variable poner.
+- `MIDGAROR_DATOS`: la raíz de la prosa del diario (la lee
+  `hugin/personal/diario.py`).
+- `INQUILINOS`: la carpeta que contiene a **todos** los inquilinos (la lee
+  `hugin/inquilino.py`), de la que `INQUILINO` —esa sí, en el `.env`, ver el
+  paso 4 de abajo— elige uno.
+
+Hoy las dos apuntan al mismo sitio, el repo privado `midgaror-diario`
+(ADR-025 de midgaror: *«midgaror-diario no se abandona: pasa a ser la
+carpeta de inquilinos»*). Ninguna de las dos es obligatoria para que el bot
+arranque —no son como `TELEGRAM_BOT_TOKEN`—, pero sin ponerlas el bot
+escribe donde no toca: la prosa cae bajo el directorio desde el que
+arrancaste el proceso, e `INQUILINOS` por defecto es `./inquilinos` ahí
+mismo. En una máquina de verdad, se ponen siempre.
 
 ## Puesta en marcha, paso a paso
 
@@ -114,40 +145,54 @@ el mensaje exacto de qué variable poner.
    Rellena `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`. El `.env` no se
    commitea nunca: ya está en `.gitignore`.
 
-   Y, desde que los comandos personales viven en el cerebro (ADR-024, fase
-   5), hace falta decir para quién es esta copia: `INQUILINO=alvaro`, el
-   nombre de su carpeta dentro de `INQUILINOS` (ver
-   `hugin/telegram/utils/inquilino.py`). Sin ella, `/apunte`, `/dia`,
-   `/semana`, `/tarea`, `/tareas`, `/cita`, `/agenda`, `/habito`, `/habitos`,
-   `/hoy` y los recordatorios fallan con un aviso claro; solo `/diario`,
-   `/entrada`, `/siento`/`/aprendo`/`/plan` —el diario en prosa, todavía de
-   midgaror— no la necesitan.
+   Desde que los comandos personales viven en el cerebro (ADR-024, fase 5),
+   hace falta decir para quién es esta copia: `INQUILINO=alvaro` en el
+   `.env`, el nombre de su carpeta dentro de `INQUILINOS` (ver
+   [`utils/inquilino.py`](utils/inquilino.py), variable `INQUILINO`). Sin
+   ella, `/apunte`, `/dia`, `/semana`, `/tarea`, `/tareas`, `/cita`,
+   `/agenda`, `/habito`, `/habitos`, `/hoy` y los recordatorios fallan con un
+   aviso claro; solo `/diario`, `/entrada` y `/siento`/`/aprendo`/`/plan`
+   —la prosa del diario, hoy en `hugin/personal/diario.py`— no la necesitan,
+   porque ese módulo no distingue entre inquilinos (ver su docstring, «Por
+   qué esto no lleva `inq=`»).
+
+   `INQUILINOS` —en plural: dónde viven **todos** los inquilinos, no cuál es
+   el tuyo— no va en el `.env`: la pone quien arranca el proceso, a mano con
+   `export INQUILINOS=…` o, en producción, como `Environment=` de la unidad
+   de systemd (ver «Como servicio»). Sin ella, por defecto es
+   `./inquilinos` bajo el directorio desde el que arrancas, que casi nunca
+   es lo que quieres fuera de una prueba.
 
 5. **Probar la escritura sin el bot**, para separar los fallos del diario de
-   los de Telegram:
+   los de Telegram. Con el venv activado (paso 3), desde `telegram/`:
 
    ```bash
-   cd ../..                      # raíz de midgaror
-   python3 diario/organizar_diario.py --input "prueba desde terminal"
-   python3 diario/bifrost_bridge.py escribir "prueba con fecha" --fecha 2026-09-04
-   git diff diario/personal/     # mirar qué ha escrito
+   python3 -c "from hugin.personal.diario import organizar_texto; \
+   print(organizar_texto('prueba desde terminal'))"
+   python3 -c "from hugin.personal.diario import escribir_entrada; \
+   print(escribir_entrada('prueba con fecha', fecha='2026-09-04'))"
+   git -C "${MIDGAROR_DATOS:-.}" diff diario/personal/   # mirar qué ha escrito
    ```
 
-   Si esto falla, el problema está en midgaror, no en el bot.
+   Ya no hay un script de línea de comandos aparte: `organizar_diario.py` y
+   `bifrost_bridge.py` eran de midgaror, y `hugin/personal/diario.py` es una
+   librería, no una CLI. `organizar_texto()` es lo que llama `/diario`, y
+   `escribir_entrada()` —una capa fina sobre la misma función, con `fecha`—
+   es lo que llama `/entrada`. Si esto falla, el problema está en
+   `hugin/personal/diario.py`, no en el bot.
 
-6. **Arrancar el bot en primer plano.** Si el servicio está vivo en esta
-   máquina, **párralo antes**: dos instancias con el mismo token se pelean por
-   los mensajes y Telegram devuelve `409 Conflict` a las dos.
+6. **Arrancar el bot en primer plano.** Si el servicio está instalado en
+   esta máquina, **párralo antes**: dos instancias con el mismo token se
+   pelean por los mensajes y Telegram devuelve `409 Conflict` a las dos.
 
    ```bash
-   sudo systemctl stop bifrost     # si el servicio está instalado aquí
-   cd proyectos/bifrost
+   sudo systemctl stop hugin-telegram   # si el servicio está instalado aquí
    source venv/bin/activate
    python3 bot.py
    ```
 
    Los mensajes de arranque salen por pantalla. Se para con `Ctrl+C`, y el
-   servicio se vuelve a levantar con `sudo systemctl start bifrost`.
+   servicio se vuelve a levantar con `sudo systemctl start hugin-telegram`.
 
 7. **Probar desde Telegram**, en este orden:
 
@@ -160,24 +205,28 @@ el mensaje exacto de qué variable poner.
    | `/entrada 01-09-2026 mal` | Responde que la fecha es inválida |
    | `/entrada 2026-09-01` | Responde con el uso correcto |
 
-8. **Comprobar y guardar lo escrito**, desde la raíz de midgaror:
+8. **Comprobar y guardar lo escrito**, desde la carpeta de datos
+   (`$MIDGAROR_DATOS` si la pusiste; si no, el directorio desde el que
+   arrancaste el bot — sin la variable, `hugin/personal/diario.py` cae a
+   `Path.cwd()`):
 
    ```bash
    git log -1 --stat
    ```
 
-   El bot escribe, commitea y sube él solo (`diario/sincronizar.py`), así que
-   lo que hay que mirar es el último commit, no el working tree: si el push
-   falló, la respuesta del bot lo dice («⚠️ commiteado en local, sin subir»).
+   El bot escribe, commitea y sube él solo (`hugin.guardado.sincronizar`),
+   así que lo que hay que mirar es el último commit, no el working tree: si
+   el push falló, la respuesta del bot lo dice («⚠️ commiteado en local, sin
+   subir»).
 
 ## Uso diario
 
 El bot corre como servicio: no hay que arrancarlo a mano.
 
 ```bash
-systemctl status bifrost           # ¿está vivo?
-journalctl -u bifrost -f           # ver qué hace, en vivo
-sudo systemctl restart bifrost     # tras cambiar código o .env
+systemctl status hugin-telegram           # ¿está vivo?
+journalctl -u hugin-telegram -f           # ver qué hace, en vivo
+sudo systemctl restart hugin-telegram     # tras cambiar código o .env
 ```
 
 Para arrancarlo a mano (depurar), **para antes el servicio**: dos instancias
@@ -185,8 +234,8 @@ con el mismo token se pelean por los mensajes y Telegram devuelve `409
 Conflict` a las dos.
 
 ```bash
-sudo systemctl stop bifrost
-cd ~/GitHub/personal/midgaror-bot/proyectos/bifrost
+sudo systemctl stop hugin-telegram
+cd ~/GitHub/personal/producto-bot/telegram
 source venv/bin/activate
 python3 bot.py
 ```
@@ -194,35 +243,48 @@ python3 bot.py
 ## Como servicio
 
 Para que el bot no dependa de una terminal abierta. La unidad está en
-[`systemd/bifrost.service`](systemd/bifrost.service).
+[`systemd/hugin-telegram.service`](systemd/hugin-telegram.service), y sus
+propios comentarios explican cada decisión de la configuración —léela entera
+antes de tocarla, sobre todo el aviso sobre el endurecimiento, más abajo.
 
-La unidad apunta a **`~/GitHub/personal/midgaror-bot`**, una copia del repo
-que es solo del bot y está siempre en `main`, no a la copia de trabajo. Un
-`git checkout` mientras el servicio está vivo le cambiaría el diario, la rama
-a la que commitea y el código que carga al reiniciar. Cómo montarla:
-[`docs/infra/bifrost.md`](https://github.com/alvarofernandezmota-tech/midgaror/blob/main/docs/infra/bifrost.md),
-sección «El bot tiene su propia copia del repo».
-
-**Antes de instalarla**, comprueba que las rutas del fichero coinciden con
-las tuyas. Llevan `varopc` y `~/GitHub/personal/midgaror-bot` escritos dentro:
+La unidad apunta a **`~/GitHub/personal/producto-bot/telegram`**, una copia
+de este mismo repo (`hugin`) que es solo del bot y está siempre en `main`, no
+a la copia de trabajo. Un `git checkout` mientras el servicio está vivo le
+cambiaría el código que carga al reiniciar — mismo motivo que tenía
+`midgaror-bot` con el bot viejo (ADR-013). Montarla es clonar `hugin` en esa
+ruta y dejarla en `main`:
 
 ```bash
-grep -E "User=|WorkingDirectory=|ExecStart=|ReadWritePaths=" systemd/bifrost.service
+git clone https://github.com/alvarofernandezmota-tech/hugin.git ~/GitHub/personal/producto-bot
+cd ~/GitHub/personal/producto-bot/telegram
+python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+cp ~/GitHub/personal/hugin/telegram/.env .   # o el que ya tuvieras
+```
+
+Actualizarla es un `git pull` en `producto-bot` (nunca en la copia de
+trabajo) y `sudo systemctl restart hugin-telegram`.
+
+**Antes de instalarla**, comprueba que las rutas del fichero coinciden con
+las tuyas. Llevan `varopc` y `~/GitHub/personal/producto-bot/telegram`
+escritos dentro:
+
+```bash
+grep -E "User=|WorkingDirectory=|ExecStart=|ReadWritePaths=" systemd/hugin-telegram.service
 ```
 
 Instalación:
 
 ```bash
-sudo cp systemd/bifrost.service /etc/systemd/system/
+sudo cp systemd/hugin-telegram.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now bifrost
+sudo systemctl enable --now hugin-telegram
 ```
 
 Comprobación:
 
 ```bash
-systemctl status bifrost
-journalctl -u bifrost -n 30 --no-pager
+systemctl status hugin-telegram
+journalctl -u hugin-telegram -n 30 --no-pager
 ```
 
 En el arranque debe aparecer `Bot en marcha` y, si tienes puesto el chat_id,
@@ -233,9 +295,9 @@ no te responde a ti, mira el log: si dice «no tiene ni un id valido», el
 ### Comandos del día a día
 
 ```bash
-sudo systemctl restart bifrost     # tras cambiar código o .env
-sudo systemctl stop bifrost        # pararlo
-journalctl -u bifrost -f           # ver el log en vivo
+sudo systemctl restart hugin-telegram     # tras cambiar código o .env
+sudo systemctl stop hugin-telegram        # pararlo
+journalctl -u hugin-telegram -f           # ver el log en vivo
 ```
 
 ### Qué hace la unidad
@@ -248,31 +310,59 @@ journalctl -u bifrost -f           # ver el log en vivo
   configuración de verdad lo corta `bot.py` saliendo, no el tope.
 - **El token no pasa por systemd.** Lo sigue leyendo `python-dotenv` del
   `.env`, así que no aparece en `systemctl show` ni en el volcado de la
-  unidad.
-- **Solo puede escribir dentro del repo midgaror.** El resto del disco lo ve
-  de solo lectura. Tiene que ser el repo entero y no solo `diario/personal/`,
-  porque al commitear git escribe en `.git/`, que está en la raíz.
+  unidad. `MIDGAROR_DATOS` e `INQUILINOS` sí van como `Environment=` en la
+  propia unidad (ADR-025): los lee código que corre antes de que exista el
+  `inquilino.toml` de cada uno, y a diferencia del token no hay nada que
+  ocultar en ellos.
+- **Solo puede escribir dentro del repo de datos** (`midgaror-diario`,
+  `ReadWritePaths=`). El resto del disco lo ve de solo lectura —
+  `producto-bot` incluido: el código se lee, los datos se escriben, y son
+  dos repos distintos (ADR-025). Tiene que ser el repo entero y no solo
+  `diario/personal/`, porque al commitear git escribe en `.git/`, que está
+  en la raíz.
+
+  **Ojo, a fecha de hoy:** el endurecimiento de arriba y el resto
+  (`NoNewPrivileges`, `PrivateTmp`, `ProtectSystem`, `ProtectHome`,
+  `ProtectKernelTunables`, `ProtectKernelModules`, `ProtectControlGroups`,
+  `RestrictSUIDSGID`, `LockPersonality`) está **descrito en el fichero pero
+  no aplicado de verdad en Madre**: se quitó a mano el 2026-09-18 para
+  depurar un fallo que no tenía que ver con esto, y todavía no se ha vuelto
+  a poner (lo dicen los comentarios de
+  [`systemd/hugin-telegram.service`](systemd/hugin-telegram.service)).
+  Antes de dar el aislamiento por hecho, comprobar con
+  `systemctl cat hugin-telegram` qué hay instalado de verdad, no lo que dice
+  este repo.
 
 ### Dónde vive y qué toca
 
-Todo lo del servicio vive en **`midgaror-bot`**, la copia que es solo del bot
-y está siempre en `main`. La copia de trabajo (`midgaror/`) no corre el
-servicio: es donde editas.
+Todo el código del servicio vive en **`producto-bot`**, la copia que es solo
+del bot y está siempre en `main`. La copia de trabajo (este repo, `hugin/`)
+no corre el servicio: es donde editas.
 
 | Cosa | Dónde |
 |------|-------|
-| Código | `~/GitHub/personal/midgaror-bot/proyectos/bifrost/` |
-| Entorno virtual | `proyectos/bifrost/venv/` |
-| Token y chat_id | `proyectos/bifrost/.env` (nunca se commitea) |
-| Unidad | `/etc/systemd/system/bifrost.service` |
-| Lo que escribe | `~/GitHub/personal/midgaror-bot/diario/personal/AAAA/MM-mes/AAAA-MM-DD.md` |
-| Logs | `journalctl -u bifrost` |
-| Lógica del diario | `~/GitHub/personal/midgaror-bot/diario/` (no está en este repo) |
+| Código | `~/GitHub/personal/producto-bot/telegram/` |
+| Entorno virtual | `producto-bot/telegram/venv/` |
+| Token y chat_id | `producto-bot/telegram/.env` (nunca se commitea) |
+| Unidad | `/etc/systemd/system/hugin-telegram.service` |
+| Datos (diario, tareas, citas, hábitos, apuntes) | `MIDGAROR_DATOS` / `INQUILINOS`, hoy las dos `~/GitHub/personal/midgaror-diario` (ADR-025 de midgaror) |
+| Logs | `journalctl -u hugin-telegram` |
+| Lógica del diario y de los cuatro modelos | `hugin/personal/` y `hugin/apuntes.py` — **en este mismo repo** (ADR-024 fase 5), no en un repo aparte |
 
-El bot **escribe, commitea y sube** él solo, con `diario/sincronizar.py`: una
-entrada mandada desde Telegram está en GitHub en segundos. Por eso el permiso
-de escritura tiene que cubrir el repo entero y no solo `diario/personal/` —
-git escribe en `.git/`, que está en la raíz.
+Dentro de `midgaror-diario`, la prosa cae en
+`diario/personal/AAAA/MM-mes/AAAA-MM-DD.md` (bajo `MIDGAROR_DATOS`, ver
+`hugin/personal/diario.py`), y las tareas, citas, hábitos y apuntes en
+`<inquilino>/tareas.json`, `citas.json`, `habitos.json` y `apuntes.json`
+(bajo `INQUILINOS`, una carpeta por inquilino — hoy solo `alvaro`, ver
+`hugin/inquilino.py`).
+
+El bot **escribe, commitea y sube** él solo, con `hugin.guardado.sincronizar`:
+una entrada mandada desde Telegram está en GitHub en segundos.
+`sincronizar()` no asume una raíz fija — descubre el repo git a partir del
+propio fichero que acaba de escribirse (`git rev-parse --show-toplevel`), así
+que hoy sube a `midgaror-diario`, el repo de datos, no al de código. Por eso
+el permiso de escritura de la unidad cubre `midgaror-diario` entero —ahí
+también está el `.git/` del commit— y no `producto-bot`.
 
 Cuando el push falla (sin red), la respuesta del bot lo dice en claro:
 «⚠️ commiteado en local, sin subir». El commit está hecho; falta el push.
@@ -286,11 +376,11 @@ Instalarlo no demuestra nada. Estas cuatro pruebas sí, y son la fase 2b:
 Dos formas de morir, y tiene que volver de las dos:
 
 ```bash
-sudo systemctl kill bifrost              # SIGTERM: el bot lo captura y sale limpio
-sleep 15; systemctl is-active bifrost    # -> active
+sudo systemctl kill hugin-telegram              # SIGTERM: el bot lo captura y sale limpio
+sleep 15; systemctl is-active hugin-telegram    # -> active
 
-sudo systemctl kill -s SIGKILL bifrost   # muerte súbita, sin tiempo a nada
-sleep 15; systemctl is-active bifrost    # -> active
+sudo systemctl kill -s SIGKILL hugin-telegram   # muerte súbita, sin tiempo a nada
+sleep 15; systemctl is-active hugin-telegram    # -> active
 ```
 
 La primera es la trampa: python-telegram-bot captura SIGTERM y sale con
@@ -306,8 +396,8 @@ Si sale `inactive` o `failed`, la unidad no está haciendo su trabajo.
 ```bash
 sudo reboot
 # cuando vuelva:
-systemctl is-enabled bifrost    # -> enabled
-systemctl is-active bifrost     # -> active
+systemctl is-enabled hugin-telegram    # -> enabled
+systemctl is-active hugin-telegram     # -> active
 ```
 
 Y lo que de verdad importa: escríbele por Telegram y comprueba que responde
@@ -319,8 +409,8 @@ En una máquina a la que llegas por SSH, **no pares la red**: te quedas fuera.
 La forma segura es esperar a que pase de verdad y mirarlo después:
 
 ```bash
-systemctl show bifrost -p NRestarts
-journalctl -u bifrost --since "1 day ago" | grep -iE "error|restart|network"
+systemctl show hugin-telegram -p NRestarts
+journalctl -u hugin-telegram --since "1 day ago" | grep -iE "error|restart|network"
 ```
 
 Si `NRestarts` sube solo, el bot se está muriendo por algo. Si sube y vuelve
@@ -331,7 +421,7 @@ solo, la unidad está cumpliendo.
 Después de unos días de uso:
 
 ```bash
-cd ~/GitHub/personal/midgaror
+cd ~/GitHub/personal/midgaror-diario   # o $MIDGAROR_DATOS, si lo moviste
 git status diario/personal/
 git diff diario/personal/
 ```
@@ -357,30 +447,28 @@ Systemd arranca el bot con el Python del entorno virtual. Si rehaces el
 huérfano, el servicio deja de arrancar. Se ve claro en el log:
 
 ```bash
-journalctl -u bifrost -n 20 --no-pager
+journalctl -u hugin-telegram -n 20 --no-pager
 ```
 
 Se arregla recreando el entorno y reiniciando el servicio.
 
 ## Comandos
 
-| Comando | Descripción |
-|---------|-------------|
 Los ejemplos son literales: se escribe lo que se ve, **sin `<` ni `>`**. La
 ayuda anterior los llevaba y se escribieron tal cual dos veces en el diario.
 
-| Comando | Qué hace | Lógica en midgaror |
-|---------|----------|--------------------|
+| Comando | Qué hace | Módulo |
+|---------|----------|--------|
 | `/start` | Bienvenida con los comandos del día a día | — |
 | `/help` | Ayuda completa | — |
-| `/diario hoy he dormido fatal` | Añade el texto a la entrada de **hoy** | `diario/organizar_diario.py` |
+| `/diario hoy he dormido fatal` | Añade el texto a la entrada de **hoy** | `hugin.personal.diario.organizar_texto` |
 | `/diario cené con mi hermana ayer` | Con «ayer» al final, a la entrada de **ayer**. Solo el pasado: «tengo examen mañana» se queda en hoy | idem |
-| `/entrada ayer se me olvidó esto` · `/entrada 2026-09-03 …` | Lo mismo en **ese día**: ayer, antes de ayer, el lunes (el que pasó), hace 3 días o la fecha | `diario/bifrost_bridge.py` |
-| `/siento contento, he dormido bien` | A **«Cómo me siento»**, con la hora | `diario/organizar_diario.py` |
-| `/aprendo lo de filters.COMMAND` | A **«Avances / aprendizajes»**, como viñeta | idem |
-| `/plan seguir con el portfolio` | A **«Para mañana»**, como viñeta | idem |
+| `/entrada ayer se me olvidó esto` · `/entrada 2026-09-03 …` | Lo mismo en **ese día**: ayer, antes de ayer, el lunes (el que pasó), hace 3 días o la fecha | `hugin.personal.diario.escribir_entrada` |
+| `/siento contento, he dormido bien` | A **«Cómo me siento»**, con la hora | `hugin.personal.diario.organizar_texto` (`seccion="siento"`) |
+| `/aprendo lo de filters.COMMAND` | A **«Avances / aprendizajes»**, como viñeta | idem (`seccion="aprendo"`) |
+| `/plan seguir con el portfolio` | A **«Para mañana»**, como viñeta | idem (`seccion="plan"`) |
 | `/tarea comprar el pan` | Apunta una tarea | `hugin.personal.tareas` |
-| `/tarea médico mañana a las 10` | Con fecha: la saca del texto | idem + `diario/fechas.py` |
+| `/tarea médico mañana a las 10` | Con fecha: la saca del texto | idem + `hugin.personal.fechas` |
 | `/tarea empezar 3` · `/tarea hecha 3` · `/tarea reabrir 3` | La mueve de estado | idem |
 | `/tarea editar 3 …` · `/tarea aplazar 3 …` | Le cambia el texto o la fecha | idem |
 | `/tarea borrar 3` | La retira | idem |
@@ -399,8 +487,8 @@ ayuda anterior los llevaba y se escribieron tal cual dos veces en el diario.
 | `/dia` · `/dia ayer` | Lo apuntado ese día, contra sus objetivos | idem |
 | `/semana` · `/semana el lunes` | La semana natural de ese día, de lunes a domingo | idem |
 | `/menu` | Botones: tocas uno, te pregunta, escribes. Para no teclear el comando | `handlers/menu.py` |
-| `/hoy` · `/hoy ayer` · `/hoy 2026-09-03` | Diario, citas, tareas y hábitos juntos. **Solo lee** | `leer_entrada` + los tres módulos |
-| *(cualquier texto sin comando)* | Se apunta en el diario de hoy, igual que `/diario` | `diario/organizar_diario.py` |
+| `/hoy` · `/hoy ayer` · `/hoy 2026-09-03` | Diario, citas, tareas y hábitos juntos. **Solo lee** | `hugin.personal.diario.leer_entrada` + `hugin.personal.{citas,tareas,habitos}` |
+| *(cualquier texto sin comando)* | Se le pregunta primero a `hugin.personal.entender`; si no reconoce nada con seguridad, se apunta en el diario de hoy, igual que `/diario` | `hugin.personal.entender` + `hugin.personal.diario.organizar_texto` |
 
 Los dos primeros, y el texto suelto, escriben dentro de la sección "Qué ha
 pasado hoy", con la hora delante, sin pisar lo que ya hubiera. Lo único que
@@ -430,8 +518,9 @@ disco de Madre, que servía para depurar y en el móvil solo estorba. Los
 avisos sí salen enteros: si el push falla, hay que leerlo.
 
 Todo lo que escribe cualquier comando se commitea y se sube con
-`diario/sincronizar.py`: el diario con su mensaje de siempre, las tareas, las
-citas y los hábitos con el suyo. `/hoy` no escribe nada, así que no sube nada.
+`hugin.guardado.sincronizar`: el diario con su mensaje de siempre, las
+tareas, las citas y los hábitos con el suyo. `/hoy` no escribe nada, así que
+no sube nada.
 
 **El menú de «/»** sale de la lista `MENU` de `bot.py`, publicada con
 `setMyCommands` al arrancar. Un comando nuevo se añade ahí y aparece solo; si
@@ -457,8 +546,11 @@ necesitando probarlo a mano.
 
 **Ninguna lógica vive aquí.** Los handlers traducen el mensaje de Telegram a
 una llamada y la respuesta a texto; lo que decide qué se guarda y cómo está
-en midgaror, con sus pruebas (ADR-009 y la regla de arquitectura de
-`plan-bot.md`). Por eso no hay base de datos en este repo.
+en `hugin/personal/` y `hugin/apuntes.py` —el cerebro, en este mismo repo—,
+con sus propias pruebas (ADR-009, ADR-024 fase 5, y la regla de arquitectura
+de `plan-bot.md` en midgaror). Por eso no hay base de datos en este repo: los
+ficheros de verdad viven en el repo de datos del inquilino (`MIDGAROR_DATOS`
+/ `INQUILINOS`, hoy `midgaror-diario`, ADR-025), no aquí.
 
 ## Seguridad
 
@@ -489,14 +581,14 @@ al copiar el id (una letra `O` donde va un cero) dejaba el bot **abierto**.
 Un bot mudo se nota en un minuto; uno abierto puede tardar semanas, y para
 entonces alguien ha escrito en el diario.
 
-Lo
-avisa en el log al arrancar. Se dejó así para no romper una instalación al
-actualizar, pero es un aviso, no una opción recomendable: este bot escribe en
-tu diario.
-
 ## Problemas conocidos
 
-- Corre en primer plano: aún no es servicio de systemd (fase 2b del plan).
+- El endurecimiento de la unidad de systemd (`ProtectSystem`, `ProtectHome`,
+  `NoNewPrivileges`, `PrivateTmp` y el resto de `Protect*`/`Restrict*`) está
+  descrito en `systemd/hugin-telegram.service` pero **no aplicado de verdad
+  en Madre** desde el 2026-09-18: se quitó a mano para depurar un fallo que
+  no tenía que ver con ellos y todavía no se ha vuelto a poner. Ver «Como
+  servicio», sección «Qué hace la unidad».
 
 ## Documentación
 

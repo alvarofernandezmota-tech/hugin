@@ -283,14 +283,17 @@ lunes»), si no, null.
 3h», «agua 1,5 litros», «he corrido 5km»). `nombre` es el qué («tele», \
 «agua», «correr»); `valor` el número; `unidad` si la dijo; `cuando` si dijo \
 otro día.
-- pregunta: pide información sobre lo que YA está apuntado, no apunta nada \
-nuevo («¿qué tengo mañana?», «¿cuánto llevo de deporte esta semana?», «¿se \
-me olvida algo?», «dime mis tareas»). Todos los campos a null, `texto` \
-incluido: no hay nada que guardar, solo algo que contestar, y la frase la \
-tiene ya quien te llama. Ojo con las dos que se parecen y no \
-son lo mismo: «¿voy al dentista el jueves?» es una pregunta —quiere saber si \
-ya está apuntado—, y «dentista el jueves» es una cita. Si no está preguntando \
-por algo que ya debería existir, no es pregunta.
+- pregunta: pide información, no apunta nada nuevo. Dos casos, y los dos \
+son pregunta: (1) sobre lo que YA está apuntado («¿qué tengo mañana?», \
+«¿cuánto llevo de deporte esta semana?», «¿se me olvida algo?», «dime mis \
+tareas»), y (2) si además se ofrece un servicio a terceros, sobre ESE \
+servicio («¿cuánto cuesta el plan negocio?», «¿qué incluye?», «¿tenéis \
+FAQ?»). Todos los campos a null, `texto` incluido: no hay nada que guardar, \
+solo algo que contestar, y la frase la tiene ya quien te llama. Ojo con las \
+dos que se parecen y no son lo mismo: «¿voy al dentista el jueves?» es una \
+pregunta —quiere saber si ya está apuntado—, y «dentista el jueves» es una \
+cita. Si no está preguntando por algo que ya debería existir o por el \
+servicio que se ofrece, no es pregunta.
 - diario: cualquier otra cosa. Un sentimiento, un relato de lo que ha \
 pasado, una reflexión, algo ambiguo. Es el valor por defecto: ante la duda, \
 diario.

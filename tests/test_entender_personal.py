@@ -384,5 +384,17 @@ class TestElSaludoNoEsDiario(unittest.TestCase):
         self.assertFalse(entender.es_saludo("   "))
 
 
+class TestPreguntaCubreElServicio(unittest.TestCase):
+    """«Pregunta» ya no es solo sobre lo apuntado: también sobre el
+    servicio, si el inquilino lo ofrece (ADR-025, fase 2). Sin esto, «¿cuánto
+    cuesta el plan negocio?» caería en «diario» por defecto y
+    `conversar.py` nunca llegaría a verla, aunque ya sepa leer tarifas.md.
+    """
+
+    def test_las_instrucciones_mencionan_las_preguntas_de_servicio(self):
+        self.assertIn("cuánto cuesta el plan negocio", entender.INSTRUCCIONES)
+        self.assertIn("servicio que se ofrece", entender.INSTRUCCIONES)
+
+
 if __name__ == "__main__":
     unittest.main()

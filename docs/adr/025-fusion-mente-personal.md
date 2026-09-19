@@ -69,10 +69,23 @@ inquilinos con capacidades distintas, atendidos por el mismo motor.
    inquilino de Álvaro Fernández (`inquilinos/alvaro-fernandez/`, fuera del
    repo) tiene capacidades mixtas —persona y el negocio de ofrecer hugin
    como servicio— y hoy ya puede contestar por Telegram a «¿cuánto cuesta
-   el plan negocio?» tirando de su propio `tarifas.md`. Queda pendiente el
-   lado de *escribir/clasificar*: `personal/entender.py` todavía no sabe
-   distinguir una pregunta de precio de una tarea cuando el inquilino tiene
-   ambas capacidades a la vez.
+   el plan negocio?» tirando de su propio `tarifas.md`.
+
+   **Segundo paso, mismo día**: `personal/entender.py` amplía su definición
+   de la intención `pregunta` para cubrir también preguntas sobre el
+   servicio que se ofrece, no solo sobre lo ya apuntado. Sin esto, esa
+   frase caía en `diario` por defecto —el valor por defecto ante la duda—
+   y `conversar.py` nunca llegaba a verla, aunque ya supiera leer
+   `tarifas.md`. Con los dos pasos, el flujo completo funciona: clasificar
+   → leer → contestar con el precio real.
+
+   Sigue pendiente: la ampliación de `pregunta` es genérica (siempre se
+   ofrece como posible lectura), no condicionada a que el inquilino tenga
+   de verdad capacidad `tarifas`/`faq` — un inquilino puramente personal
+   que pregunte "¿cuánto cuesta X?" simplemente no encontrará nada en el
+   bloque de servicio (`conversar.py` ya lo cubre con "no tienes nada
+   apuntado de eso"), así que no rompe nada, pero no es la clasificación
+   más precisa posible.
 3. **Un modelo de cita único** — `mente.recepcion.Cita` (con `acotada`,
    `franja`, el flujo de negocio) y el `dict` de `personal/citas.py` (con
    `sin_franja`, `duracion`, choques) comparten ya casi el mismo problema

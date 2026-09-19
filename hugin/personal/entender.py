@@ -283,17 +283,15 @@ lunes»), si no, null.
 3h», «agua 1,5 litros», «he corrido 5km»). `nombre` es el qué («tele», \
 «agua», «correr»); `valor` el número; `unidad` si la dijo; `cuando` si dijo \
 otro día.
-- pregunta: pide información, no apunta nada nuevo. Dos casos, y los dos \
-son pregunta: (1) sobre lo que YA está apuntado («¿qué tengo mañana?», \
-«¿cuánto llevo de deporte esta semana?», «¿se me olvida algo?», «dime mis \
-tareas»), y (2) si además se ofrece un servicio a terceros, sobre ESE \
-servicio («¿cuánto cuesta el plan negocio?», «¿qué incluye?», «¿tenéis \
-FAQ?»). Todos los campos a null, `texto` incluido: no hay nada que guardar, \
+- pregunta: pide información, no apunta nada nuevo. \
+Sobre lo que YA está apuntado («¿qué tengo mañana?», «¿cuánto llevo de \
+deporte esta semana?», «¿se me olvida algo?», «dime mis tareas»){clausula_servicio}. \
+Todos los campos a null, `texto` incluido: no hay nada que guardar, \
 solo algo que contestar, y la frase la tiene ya quien te llama. Ojo con las \
 dos que se parecen y no son lo mismo: «¿voy al dentista el jueves?» es una \
 pregunta —quiere saber si ya está apuntado—, y «dentista el jueves» es una \
-cita. Si no está preguntando por algo que ya debería existir o por el \
-servicio que se ofrece, no es pregunta.
+cita. Si no está preguntando por algo que ya debería existir{clausula_fin}, \
+no es pregunta.
 - diario: cualquier otra cosa. Un sentimiento, un relato de lo que ha \
 pasado, una reflexión, algo ambiguo. Es el valor por defecto: ante la duda, \
 diario.
@@ -307,8 +305,36 @@ mínima duda, confianza más baja, nunca alta a ciegas.
 Devuelve SOLO el JSON con los ocho campos. Los que no apliquen, van a null \
 (o `true` en `hecho` si no es un hábito)."""
 
+# Las dos clausulas que activan las preguntas de servicio en INSTRUCCIONES.
+# Vacías por defecto: sin inquilino, o sin capacidad de negocio, «pregunta»
+# se queda en su sentido original (solo sobre lo ya apuntado). Con
+# capacidad `tarifas`/`faq`, se rellenan y el modelo sabe que también puede
+# preguntarle por el servicio que ofrece — ver `_instrucciones()`.
+_CLAUSULA_SERVICIO_VACIA = ""
+_CLAUSULA_SERVICIO_LLENA = (
+    ", y también sobre el servicio que se ofrece a terceros, si lo hay "
+    "(«¿cuánto cuesta el plan negocio?», «¿qué incluye?», «¿tenéis FAQ?»)")
+_CLAUSULA_FIN_VACIA = ""
+_CLAUSULA_FIN_LLENA = " o por el servicio que se ofrece"
 
-def _preguntar_claude(frase: str) -> dict:
+
+def _instrucciones(inq=None) -> str:
+    """`INSTRUCCIONES`, ampliada si el inquilino ofrece un servicio a terceros.
+
+    Sin esto, «¿cuánto cuesta el plan negocio?» se clasificaría igual de
+    bien o mal para cualquier inquilino, incluido uno puramente personal sin
+    nada que vender — inofensivo (`conversar.py` contestaría «no tienes nada
+    apuntado de eso»), pero no la lectura más precisa. Con `inq` y su
+    capacidad `tarifas`/`faq` (ADR-024), el propio clasificador solo ofrece
+    esa lectura a quien de verdad tiene un servicio que ofrecer.
+    """
+    de_negocio = inq is not None and (inq.puede("tarifas") or inq.puede("faq"))
+    return INSTRUCCIONES.format(
+        clausula_servicio=_CLAUSULA_SERVICIO_LLENA if de_negocio else _CLAUSULA_SERVICIO_VACIA,
+        clausula_fin=_CLAUSULA_FIN_LLENA if de_negocio else _CLAUSULA_FIN_VACIA)
+
+
+def _preguntar_claude(frase: str, inq=None) -> dict:
     """La llamada a la API. Separada para poder sustituirla en las pruebas."""
     global _cliente
     import anthropic
@@ -321,7 +347,7 @@ def _preguntar_claude(frase: str) -> dict:
     respuesta = _cliente.beta.messages.create(
         model=modelo(),
         max_tokens=256,
-        system=INSTRUCCIONES,
+        system=_instrucciones(inq),
         messages=[{"role": "user", "content": frase}],
         output_config={"effort": "low",
                        "format": {"type": "json_schema", "schema": ESQUEMA}},
@@ -334,7 +360,7 @@ def _preguntar_claude(frase: str) -> dict:
     return json.loads(texto)
 
 
-def _preguntar_ollama(frase: str) -> dict:
+def _preguntar_ollama(frase: str, inq=None) -> dict:
     """Lo mismo, pero contra un modelo de esta máquina. Nada sale de Madre.
 
     Por HTTP a Ollama y con `urllib`, sin cliente ni dependencia nueva.
@@ -344,7 +370,7 @@ def _preguntar_ollama(frase: str) -> dict:
 
     cuerpo = json.dumps({
         "model": modelo(),
-        "messages": [{"role": "system", "content": INSTRUCCIONES},
+        "messages": [{"role": "system", "content": _instrucciones(inq)},
                      {"role": "user", "content": frase}],
         "format": ESQUEMA,
         "stream": False,
@@ -364,7 +390,7 @@ def _preguntar_ollama(frase: str) -> dict:
     return json.loads(contestado["message"]["content"])
 
 
-def _preguntar_groq(frase: str) -> dict:
+def _preguntar_groq(frase: str, inq=None) -> dict:
     """Lo mismo, contra Groq. API compatible con la de OpenAI, sin cliente.
 
     `response_format: json_object` en vez de `json_schema` con `strict`:
@@ -381,7 +407,7 @@ def _preguntar_groq(frase: str) -> dict:
     clave = os.environ.get("GROQ_API_KEY", "").strip()
     cuerpo = json.dumps({
         "model": modelo(),
-        "messages": [{"role": "system", "content": INSTRUCCIONES},
+        "messages": [{"role": "system", "content": _instrucciones(inq)},
                      {"role": "user", "content": frase}],
         "response_format": {"type": "json_object"},
         "temperature": 0,
@@ -395,7 +421,7 @@ def _preguntar_groq(frase: str) -> dict:
     return json.loads(contestado["choices"][0]["message"]["content"])
 
 
-def _preguntar_google(frase: str) -> dict:
+def _preguntar_google(frase: str, inq=None) -> dict:
     """Lo mismo, contra la API de Google AI Studio (Gemini).
 
     `responseSchema` con el ESQUEMA tal cual: la documentación de Google
@@ -408,7 +434,7 @@ def _preguntar_google(frase: str) -> dict:
 
     clave = os.environ.get("GOOGLE_API_KEY", "").strip()
     cuerpo = json.dumps({
-        "system_instruction": {"parts": [{"text": INSTRUCCIONES}]},
+        "system_instruction": {"parts": [{"text": _instrucciones(inq)}]},
         "contents": [{"role": "user", "parts": [{"text": frase}]}],
         "generationConfig": {
             "responseMimeType": "application/json",
@@ -425,7 +451,25 @@ def _preguntar_google(frase: str) -> dict:
     return json.loads(texto)
 
 
-def entender(frase: str, preguntar=None) -> Entendido | None:
+def _llamar(preguntar, frase: str, inq):
+    """Llama a `preguntar` con `inq` si sabe recibirlo, o solo con la frase.
+
+    Un `preguntar` de prueba —`lambda frase: {...}`— no acepta `inq`; los
+    cuatro `_preguntar_*` de verdad sí. Llamarlo como sepa evita romper
+    ninguna prueba existente con esta costura.
+    """
+    import inspect
+
+    try:
+        acepta = set(inspect.signature(preguntar).parameters)
+    except (TypeError, ValueError):
+        acepta = set()
+    if "inq" in acepta:
+        return preguntar(frase, inq=inq)
+    return preguntar(frase)
+
+
+def entender(frase: str, preguntar=None, inq=None) -> Entendido | None:
     """Clasifica `frase`, o `None` si hay que mandarla al diario como siempre.
 
     `None` cubre TODO lo que no es un «sí, alta confianza, no es diario»:
@@ -444,6 +488,10 @@ def entender(frase: str, preguntar=None) -> Entendido | None:
     `preguntar` a mano (producción de verdad, nunca una prueba con su
     propio doble), `_reglas()` prueba los patrones que no necesitan
     preguntar a nadie.
+
+    `inq` es el inquilino, opcional: sin él, «pregunta» solo cubre lo ya
+    apuntado. Con un inquilino de capacidad `tarifas`/`faq`, también cubre
+    preguntas sobre el servicio que ofrece — ver `_instrucciones()`.
     """
     if preguntar is None:
         regla = _reglas(frase)
@@ -458,7 +506,7 @@ def entender(frase: str, preguntar=None) -> Entendido | None:
             "google": _preguntar_google,
         }.get(cual, _preguntar_claude)
     try:
-        datos = preguntar(frase)
+        datos = _llamar(preguntar, frase, inq)
         intencion = datos.get("intencion")
         confianza = datos.get("confianza")
         if intencion not in INTENCIONES or confianza not in CONFIANZAS:

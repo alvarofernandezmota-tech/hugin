@@ -176,7 +176,13 @@ async def procesar(update: Update, texto: str) -> None:
     # tardar varios segundos (TOPE_SEGUNDOS_OLLAMA en entender.py). Sin
     # sacarla del hilo del bucle de eventos, esos segundos congelan el bot
     # entero para todos los chats mientras clasifica uno solo.
-    entendido = await asyncio.to_thread(entender.entender, texto, _preguntar)
+    #
+    # inquilino_actual() aquí, y no más abajo en cada rama: "pregunta" sobre
+    # el servicio que se ofrece (tarifas/faq) solo se reconoce con el
+    # inquilino delante — sin él, entender() se queda en su sentido más
+    # estrecho (solo lo ya apuntado). Ver personal/entender.py::_instrucciones.
+    inq = inquilino_actual()
+    entendido = await asyncio.to_thread(entender.entender, texto, _preguntar, inq)
     if entendido is not None:
         try:
             await _enrutar(update, entendido)

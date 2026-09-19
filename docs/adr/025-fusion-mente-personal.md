@@ -79,13 +79,15 @@ inquilinos con capacidades distintas, atendidos por el mismo motor.
    `tarifas.md`. Con los dos pasos, el flujo completo funciona: clasificar
    → leer → contestar con el precio real.
 
-   Sigue pendiente: la ampliación de `pregunta` es genérica (siempre se
-   ofrece como posible lectura), no condicionada a que el inquilino tenga
-   de verdad capacidad `tarifas`/`faq` — un inquilino puramente personal
-   que pregunte "¿cuánto cuesta X?" simplemente no encontrará nada en el
-   bloque de servicio (`conversar.py` ya lo cubre con "no tienes nada
-   apuntado de eso"), así que no rompe nada, pero no es la clasificación
-   más precisa posible.
+   **Tercer paso, mismo día**: ya no es genérico. `entender()` acepta `inq`
+   y `_instrucciones(inq)` solo ofrece la lectura de "pregunta de servicio"
+   cuando `inq.puede("tarifas")` o `inq.puede("faq")` de verdad — un
+   inquilino puramente personal ni siquiera ve esa opción en el prompt. El
+   llamador real (`telegram/handlers/texto.py::procesar`) ya pasa
+   `inquilino_actual()`. Con los tres pasos, la fase 2 tiene su primer caso
+   de uso completo y de verdad gobernado por capacidades, sin router
+   especulativo: mismo `entender()`/`conversar()` de siempre, que se
+   comportan distinto según lo que el inquilino puede hacer.
 3. **Un modelo de cita único** — `mente.recepcion.Cita` (con `acotada`,
    `franja`, el flujo de negocio) y el `dict` de `personal/citas.py` (con
    `sin_franja`, `duracion`, choques) comparten ya casi el mismo problema

@@ -16,9 +16,8 @@ hugin vivían solo en midgaror, para no tener dos versiones de la misma
 decisión separándose con el tiempo. Se decidió lo contrario: **hugin pasa a
 ser la fuente de verdad de su propia documentación** (ADR, ecosistema,
 infraestructura). Las **sesiones de trabajo** son la excepción — esas siguen
-en midgaror, que es el repo pensado para eso. Los ADR y auditorías que
-todavía no se han portado están marcados como pendientes en cada carpeta;
-midgaror no está en el scope de esta sesión todavía.
+en midgaror, que es el repo pensado para eso. ADR-019, ADR-024 y la
+auditoría de thea-ia ya se portaron de midgaror, verbatim.
 
 ## Dónde está cada cosa
 

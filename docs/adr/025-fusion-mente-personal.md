@@ -4,9 +4,19 @@ fecha: 2026-09-19
 repo: hugin
 etiquetas: [arquitectura, mente, personal, inquilino]
 estado: aceptado, en marcha (fase 1 de 4 cerrada)
+relacionado: [docs/adr/024-un-cerebro-dos-puertas.md]
 ---
 
-# ADR-001: un solo cerebro, gobernado por las capacidades del inquilino
+# ADR-025: un solo cerebro, gobernado por las capacidades del inquilino
+
+Numerado a continuación de [ADR-024](024-un-cerebro-dos-puertas.md)
+(midgaror), que es quien decidió juntar el producto en un repo y dejó
+escrito, en su punto 4, que «hay dos capas de entender y una sobra» y que
+había que «decidir cuál manda antes de mover nada». Este ADR es esa
+decisión, tomada con el código real de hugin a 2026-09-19 —no con lo que el
+024 sabía el 2026-09-18—, y con más profundidad de la que ese punto 4
+cubría (también converge `Cita`/citas.py y `Conversacion`, no solo los dos
+clasificadores).
 
 ## Contexto
 

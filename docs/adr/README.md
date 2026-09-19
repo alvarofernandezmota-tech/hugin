@@ -7,28 +7,24 @@ etiquetas: [indice, adr]
 
 # Decisiones de arquitectura (ADR)
 
-Esqueleto abierto el 2026-09-19: hugin pasa a ser la **fuente de verdad** de
-su propia documentación, incluidos los ADR que hasta ahora vivían solo en
-[midgaror](https://github.com/alvarofernandezmota-tech/midgaror). Ese repo no
-está todavía en el scope de esta sesión — cuando se conecte, los ADR que
-mandan aquí se portan a esta carpeta, con su número y su fecha original, y
-`docs/README.md` deja de remitir a midgaror.
+Desde el 2026-09-19, hugin es la **fuente de verdad** de su propia
+documentación. ADR-019 y ADR-024 se portaron de
+[midgaror](https://github.com/alvarofernandezmota-tech/midgaror), que sigue
+siendo su origen —son copias verbatim, con su número y su fecha original—;
+`midgaror` ya está en el scope de esta sesión.
 
 ## Los ADR de hugin
 
 | ADR | De qué trata | Estado |
 |---|---|---|
-| [001](001-fusion-mente-personal.md) | Un solo cerebro, gobernado por las capacidades del inquilino | Aceptado, fase 1 de 4 cerrada |
-
-## Pendientes de portar desde midgaror
-
-| ADR | De qué trata | Estado |
-|---|---|---|
-| ADR-019 | El cerebro sale de gjallarhorn a hugin como submódulo | Pendiente de portar |
-| ADR-024 | «Un cerebro y dos puertas»: hugin como librería, telegram/ y telefono/ como aplicaciones finas | Pendiente de portar |
+| [019](019-cerebro-de-gjallarhorn-en-hugin.md) | El cerebro sale de gjallarhorn a hugin como submódulo (portado de midgaror) | Aceptado, cerrado — hugin ya no es submódulo, es el repo del producto (ver ADR-024) |
+| [024](024-un-cerebro-dos-puertas.md) | «Un cerebro y dos puertas»: hugin como el producto entero, telegram/ y telefono/ como puertas finas (portado de midgaror) | En marcha — fases 1-2 cerradas, `personal/` ya portado; ver nota dentro del fichero |
+| [025](025-fusion-mente-personal.md) | Un solo cerebro, gobernado por las capacidades del inquilino — la decisión del punto 4 del ADR-024 | Aceptado, fase 1 de 4 cerrada |
 
 ## Convención
 
 Un ADR por fichero: `NNN-titulo-en-kebab-case.md`, con frontmatter
-`tipo: adr`, `fecha`, `repo: hugin`, y estado (`propuesto`, `aceptado`,
-`superado-por-NNN`). Números sin reutilizar, aunque un ADR quede superado.
+`tipo: adr`/`tipo: decision`, `fecha`, `repo`, y estado (`propuesto`,
+`aceptado`, `superado-por-NNN`). Números sin reutilizar, aunque un ADR quede
+superado. Los portados de midgaror conservan su número y su `repo`
+original en el frontmatter; solo los propios de hugin llevan `repo: hugin`.

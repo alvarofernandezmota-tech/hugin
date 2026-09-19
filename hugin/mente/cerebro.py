@@ -45,6 +45,7 @@ motores, que no son lo mismo para quien lleva el negocio:
     GJALLARHORN_LLM=groq        + GROQ_API_KEY        Groq, en la nube (gratis, con límite)
     GJALLARHORN_LLM=google      + GOOGLE_API_KEY       Gemini, en la nube (gratis, con límite)
     GJALLARHORN_LLM=ollama                             un modelo en esta máquina
+    GJALLARHORN_LLM=auto                                nube primero, Ollama si falla
 
 Con Claude/Groq/Google acierta más y **el texto de lo que dijo el cliente
 sale de casa** hacia la API; el audio no, el texto sí. Con Ollama no sale
@@ -59,6 +60,15 @@ sensibles.
 Cuál de los cuatro es cosa del negocio, no de este fichero, y por eso no
 viene puesto ninguno. Sin `GJALLARHORN_LLM`, se usa Claude si hay clave y
 nada si no la hay, que es como estaba antes.
+
+`auto` es el quinto modo, y combina dos: prueba la nube primero, en el
+orden Claude, Groq, Google (la primera que tenga clave puesta), y si esa
+llamada falla —red caída, clave rechazada, límite agotado— cae a Ollama
+local antes de rendirse. Va en ese orden y no al revés porque Ollama
+acierta menos y tarda más: como red de seguridad no se nota, como motor
+principal sí. Si no hay ninguna clave de nube puesta, `auto` prueba
+directamente Ollama. Solo entra en juego una vez: si Ollama también falla,
+`entender()` devuelve `None` como siempre — no hay un tercer intento.
 
 ## Tres frenos
 
@@ -84,6 +94,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from hugin import motores
 from hugin.mente import conocimiento
 from hugin.mente import rag
 
@@ -128,53 +139,38 @@ class Entendido:
         return self.confianza != "baja"
 
 
-def proveedor() -> str:
-    """Qué motor se usa: «anthropic», «ollama», «groq», «google» o «» si no hay ninguno.
+MODELO_GROQ_POR_DEFECTO = "llama-3.3-70b-versatile"
+MODELO_GOOGLE_POR_DEFECTO = "gemini-2.5-flash"
 
-    Sin `GJALLARHORN_LLM`, lo de siempre: Claude si hay clave y nada si no.
-    Así, quien ya lo tenía funcionando no tiene que tocar nada. Groq y
-    Google (Gemini) son gratuitos con límite de peticiones, cada uno con su
-    propia clave (`GROQ_API_KEY`, `GOOGLE_API_KEY`) — elegir uno sin su
-    clave puesta no enciende nada, como ya pasaba con Claude.
-    """
-    from hugin.guardado import ajustes
-    ajustes.leer()
-    elegido = os.environ.get("GJALLARHORN_LLM", "").strip().lower()
-    if elegido in ("no", "off", "ninguno", "0"):
-        return ""
-    if elegido in ("ollama", "local"):
-        return "ollama"
-    if elegido in ("groq",):
-        return "groq" if os.environ.get("GROQ_API_KEY", "").strip() else ""
-    if elegido in ("google", "gemini"):
-        return "google" if os.environ.get("GOOGLE_API_KEY", "").strip() else ""
-    # "anthropic"/"claude" explícitos y cualquier otra cosa (vacío, una
-    # errata) acaban en el mismo sitio: Claude si hay clave, nada si no.
-    return "anthropic" if os.environ.get("ANTHROPIC_API_KEY", "").strip() else ""
+# El selector de motor es el mismo que usa `personal/entender.py` — ver
+# `hugin/motores.py`, primer paso de la fusión mente/+personal/ (docs/adr/).
+# `leer_ajustes=True`: este es el bot de negocio, y `proveedor()` tiene que
+# cargar el `.env` del negocio antes de mirar el entorno.
+_selector = motores.SelectorDeMotor(
+    variable="GJALLARHORN_LLM", prefijo="GJALLARHORN", leer_ajustes=True,
+    modelo_por_defecto=MODELO_POR_DEFECTO,
+    modelo_local_por_defecto=MODELO_LOCAL_POR_DEFECTO,
+    modelo_groq_por_defecto=MODELO_GROQ_POR_DEFECTO,
+    modelo_google_por_defecto=MODELO_GOOGLE_POR_DEFECTO,
+    ollama_por_defecto=OLLAMA_POR_DEFECTO)
+
+
+def proveedor() -> str:
+    """Qué motor se usa: «anthropic», «ollama», «groq», «google», «auto» o «» si no hay ninguno."""
+    return _selector.proveedor()
 
 
 def configurado() -> bool:
     """¿Hay algún modelo con el que contar? Sin él, esto no existe."""
-    return bool(proveedor())
-
-
-MODELO_GROQ_POR_DEFECTO = "llama-3.3-70b-versatile"
-MODELO_GOOGLE_POR_DEFECTO = "gemini-2.5-flash"
+    return _selector.configurado()
 
 
 def modelo() -> str:
-    propio = os.environ.get("GJALLARHORN_LLM_MODELO", "").strip()
-    if propio:
-        return propio
-    return {
-        "ollama": MODELO_LOCAL_POR_DEFECTO,
-        "groq": MODELO_GROQ_POR_DEFECTO,
-        "google": MODELO_GOOGLE_POR_DEFECTO,
-    }.get(proveedor(), MODELO_POR_DEFECTO)
+    return _selector.modelo()
 
 
 def ollama() -> str:
-    return os.environ.get("GJALLARHORN_OLLAMA", "").strip() or OLLAMA_POR_DEFECTO
+    return _selector.ollama()
 
 
 def _esquema(servicios: list[str]) -> dict:
@@ -401,6 +397,33 @@ def _llamar(preguntar, frase, servicios, turnos, sabido, esperando) -> dict:
     return preguntar(frase, servicios)
 
 
+def _motores_nube() -> list[str]:
+    """Los motores en la nube con clave puesta, en el orden en que se prueban."""
+    return _selector.motores_nube()
+
+
+def _llamar_con(motor: str | None, preguntar, frase, servicios, turnos, sabido, esperando) -> dict:
+    """Como `_llamar`, fijando `GJALLARHORN_LLM` al motor real mientras dura.
+
+    `modelo()` lee `proveedor()` —y por tanto `GJALLARHORN_LLM`— para saber
+    qué modelo por defecto usar. En modo `auto` esa variable vale "auto", que
+    no está en el mapa de `modelo()`: sin este ajuste, cada intento pediría
+    el modelo de Claude aunque estuviera llamando a Ollama. Se restaura
+    siempre, para no dejar el proceso con la variable cambiada.
+    """
+    if motor is None:
+        return _llamar(preguntar, frase, servicios, turnos, sabido, esperando)
+    antes = os.environ.get("GJALLARHORN_LLM")
+    os.environ["GJALLARHORN_LLM"] = motor
+    try:
+        return _llamar(preguntar, frase, servicios, turnos, sabido, esperando)
+    finally:
+        if antes is None:
+            os.environ.pop("GJALLARHORN_LLM", None)
+        else:
+            os.environ["GJALLARHORN_LLM"] = antes
+
+
 def entender(frase: str, base: Path | None = None, preguntar=None,
              turnos=None, esperando: str | None = None) -> Entendido | None:
     """Qué quiere quien llama, según el modelo. None si no hay modelo o falla.
@@ -410,24 +433,38 @@ def entender(frase: str, base: Path | None = None, preguntar=None,
     en esta llamada y `esperando` lo que se le acaba de preguntar: sin eso,
     «el jueves» y «Marta» no significan nada.
     """
-    if preguntar is None:
-        cual = proveedor()
-        if not cual:
-            return None
-        preguntar = {
-            "ollama": _preguntar_ollama,
-            "groq": _preguntar_groq,
-            "google": _preguntar_google,
-        }.get(cual, _preguntar_claude)
-
     servicios = [s["servicio"] for s in conocimiento.tarifas(base)]
     sabido = rag.contexto(frase, base, tope=2, limite=600)
     arranque = time.perf_counter()
-    try:
-        crudo = _llamar(preguntar, frase, servicios, turnos,
-                        sabido, SE_LE_PREGUNTO.get(esperando or ""))
-    except Exception as error:  # noqa: BLE001 — red, clave, modelo: nada tumba una llamada
-        return _no_contesto(error)
+
+    if preguntar is not None:
+        motores = [(None, preguntar)]
+    else:
+        cual = proveedor()
+        if not cual:
+            return None
+        # Se busca en el módulo, no en un mapa fijado al importar: así una
+        # prueba que sustituye `cerebro._preguntar_groq` (mock.patch.object)
+        # se respeta también aquí, igual que cuando se llama directo.
+        nombres = {"anthropic": "_preguntar_claude", "ollama": "_preguntar_ollama",
+                  "groq": "_preguntar_groq", "google": "_preguntar_google"}
+        if cual == "auto":
+            # Nube primero (la primera con clave puesta), Ollama de respaldo
+            # si la nube falla. Sin ninguna clave de nube, directo a Ollama.
+            motores = [(m, globals()[nombres[m]]) for m in (*_motores_nube(), "ollama")]
+        else:
+            motores = [(cual, globals().get(nombres.get(cual, ""), _preguntar_claude))]
+
+    error_final = None
+    for motor, fn in motores:
+        try:
+            crudo = _llamar_con(motor, fn, frase, servicios, turnos,
+                                sabido, SE_LE_PREGUNTO.get(esperando or ""))
+            break
+        except Exception as error:  # noqa: BLE001 — red, clave, modelo: nada tumba una llamada
+            error_final = error
+    else:
+        return _no_contesto(error_final)
     ms = (time.perf_counter() - arranque) * 1000
 
     intencion = crudo.get("intencion")

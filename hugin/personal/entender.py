@@ -72,6 +72,8 @@ import re
 import threading
 from dataclasses import dataclass
 
+from hugin import motores
+
 INTENCIONES = ("tarea", "habito", "cita", "apunte", "pregunta", "diario")
 
 # Las que acaban escribiendo algo. `pregunta` no está, y por eso `conversar`
@@ -211,50 +213,35 @@ def _reglas(frase: str) -> Entendido | None:
     return None
 
 
-def proveedor() -> str:
-    """Qué motor se usa: «anthropic», «ollama», «groq», «google» o «» si no hay ninguno.
+# El mismo selector que usa `mente/cerebro.py` — ver `hugin/motores.py`,
+# primer paso de la fusión mente/+personal/ (docs/adr/). `leer_ajustes=False`
+# a propósito: a diferencia del bot de negocio, este no tiene un `.env` de
+# negocio que cargar antes de mirar el entorno.
+_selector = motores.SelectorDeMotor(
+    variable="MIDGAROR_LLM", prefijo="MIDGAROR", leer_ajustes=False,
+    modelo_por_defecto=MODELO_POR_DEFECTO,
+    modelo_local_por_defecto=MODELO_LOCAL_POR_DEFECTO,
+    modelo_groq_por_defecto=MODELO_GROQ_POR_DEFECTO,
+    modelo_google_por_defecto=MODELO_GOOGLE_POR_DEFECTO,
+    ollama_por_defecto=OLLAMA_POR_DEFECTO)
 
-    Sin `MIDGAROR_LLM`, lo de siempre: Claude si hay clave y nada si no.
-    Mismo criterio que `hugin/mente/cerebro.py`, misma variable con otro
-    prefijo. Groq y Google (Gemini) son gratuitos con límite de peticiones,
-    y cada uno necesita su propia clave (`GROQ_API_KEY`, `GOOGLE_API_KEY`)
-    para contar como configurado — igual que Claude con `ANTHROPIC_API_KEY`.
-    Elegir uno sin su clave puesta no enciende nada, igual que pasaba ya con
-    Claude: nunca un `MIDGAROR_LLM` mal puesto tira el bot, cae al camino de
-    siempre (diario).
-    """
-    elegido = os.environ.get("MIDGAROR_LLM", "").strip().lower()
-    if elegido in ("no", "off", "ninguno", "0"):
-        return ""
-    if elegido in ("ollama", "local"):
-        return "ollama"
-    if elegido in ("groq",):
-        return "groq" if os.environ.get("GROQ_API_KEY", "").strip() else ""
-    if elegido in ("google", "gemini"):
-        return "google" if os.environ.get("GOOGLE_API_KEY", "").strip() else ""
-    # "anthropic"/"claude" explícitos y cualquier otra cosa (vacío, una
-    # errata) acaban en el mismo sitio: Claude si hay clave, nada si no.
-    return "anthropic" if os.environ.get("ANTHROPIC_API_KEY", "").strip() else ""
+
+def proveedor() -> str:
+    """Qué motor se usa: «anthropic», «ollama», «groq», «google», «auto» o «» si no hay ninguno."""
+    return _selector.proveedor()
 
 
 def configurado() -> bool:
     """¿Hay algún motor con el que contar? Sin él, esto no existe."""
-    return bool(proveedor())
+    return _selector.configurado()
 
 
 def modelo() -> str:
-    propio = os.environ.get("MIDGAROR_LLM_MODELO", "").strip()
-    if propio:
-        return propio
-    return {
-        "ollama": MODELO_LOCAL_POR_DEFECTO,
-        "groq": MODELO_GROQ_POR_DEFECTO,
-        "google": MODELO_GOOGLE_POR_DEFECTO,
-    }.get(proveedor(), MODELO_POR_DEFECTO)
+    return _selector.modelo()
 
 
 def ollama() -> str:
-    return os.environ.get("MIDGAROR_OLLAMA", "").strip() or OLLAMA_POR_DEFECTO
+    return _selector.ollama()
 
 
 ESQUEMA = {

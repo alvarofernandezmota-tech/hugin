@@ -49,7 +49,8 @@ class TestCitas(unittest.TestCase):
         cita, solapan = citas.agregar("médico mañana a las 10", self.inq, AHORA)
         self.assertEqual(solapan, [])
         self.assertEqual(cita, {"id": 1, "texto": "médico", "fecha": MANANA, "hora": "10:00",
-                                "duracion": 60, "creada": "2026-09-05 17:10"})
+                                "duracion": 60, "creada": "2026-09-05 17:10",
+                                "sin_franja": True})
         # En disco va envuelto con su versión de esquema (ADR-012, apartado 7).
         self.assertEqual(json.loads(self.ruta.read_text(encoding="utf-8")),
                          {"schemaVersion": citas.VERSION, "datos": [cita]})
@@ -119,13 +120,35 @@ class TestCitas(unittest.TestCase):
         lineas = citas.resumen(HOY, self.inq, semana=True).splitlines()
         self.assertEqual(lineas[0], "Citas del 2026-09-05 al 2026-09-11:")
         self.assertEqual(lineas[1], "2026-09-06:")
-        self.assertIn("[1] 10:00 · médico", lineas[2])
+        self.assertIn("[1] 10:00 (¿mañana o tarde?) · médico", lineas[2])
         self.assertEqual(lineas[3], "2026-09-07:")
         self.assertIn("[2] 17:00 · dentista", lineas[4])
 
     def test_sin_inquilino_falla_claro(self):
         with self.assertRaises(ValueError):
             citas.agregar("médico mañana a las 10", ahora=AHORA)
+
+    def test_hora_acotada_no_se_marca_sin_franja(self):
+        cita = self._cita("médico mañana a las 17")
+        self.assertNotIn("sin_franja", cita)
+
+    def test_confirmar_hora_fija_la_hora_y_quita_la_marca(self):
+        cita = self._cita("médico mañana a las 5")
+        self.assertTrue(cita["sin_franja"])
+        confirmada = citas.confirmar_hora(cita["id"], "17:00", self.inq)
+        self.assertEqual(confirmada["hora"], "17:00")
+        self.assertNotIn("sin_franja", confirmada)
+        self.assertEqual(citas.cargar(self.inq)[0]["hora"], "17:00")
+
+    def test_confirmar_hora_con_formato_invalido_falla_claro(self):
+        cita = self._cita("médico mañana a las 5")
+        for mala in ("cinco de la tarde", "25:00", "10:70", "10"):
+            with self.assertRaises(ValueError):
+                citas.confirmar_hora(cita["id"], mala, self.inq)
+
+    def test_confirmar_hora_de_cita_inexistente_falla_claro(self):
+        with self.assertRaises(ValueError):
+            citas.confirmar_hora(99, "17:00", self.inq)
 
 
 class TestFechasEnLenguajeNatural(unittest.TestCase):

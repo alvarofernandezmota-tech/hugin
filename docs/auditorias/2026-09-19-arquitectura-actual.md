@@ -148,3 +148,55 @@ El inventario bruto de Python bajo conectores contó 3.779 ficheros. La cifra
 está contaminada por entorno virtual, cachés o dependencias locales. El próximo
 inventario excluirá `venv`, `__pycache__` y directorios de dependencias para
 medir únicamente código propio.
+
+## Corrección: superficie real de telefono/
+
+La cifra de 142 imports del hallazgo inicial mezclaba dos conectores
+distintos con responsabilidades diferentes:
+
+### `telefono/canal/` — el conector real (atiende llamadas)
+
+Usa una superficie pequeña y ya pública:
+
+```text
+recepcion.conversacion_de, recepcion.Conversacion
+negocios.cargar, negocios.listar, negocios.advertencias
+datos.usar
+conocimiento.tarifas, conocimiento.que_falta
+_frases.problemas
+memoria.ficha, memoria.Ficha, memoria.apuntar_cita,
+memoria.apuntar_llamada, memoria.apuntar_anulacion
+avisos.registrar
+```
+
+Ninguna de estas llamadas usa una función con guion bajo. `canal/` no
+necesita una fachada nueva: ya se comporta como un conector correcto.
+
+**Estado:** correcto, sin acción pendiente.
+
+### `telefono/dueno/` — herramientas de operador, no un conector
+
+Panel, diagnóstico, agentes, revisar, aprender y medir_voz acceden a
+funciones marcadas como privadas en otros módulos:
+
+```text
+rag._tokens
+rag._raiz
+conocimiento._sin_tildes
+_agenda._minutos
+```
+
+Esto es deuda real, pero de bajo riesgo: `dueno/` es código de
+administración de un solo operador (tú), no una superficie ofrecida a
+clientes ni a otro desarrollador. No bloquea clonar Hugin para un cliente.
+
+**Decisión:** no crear una fachada pública general para `telefono/`. En su
+lugar, cuando se toque `rag.py`, `conocimiento.py` o `agenda.py`, promover
+esas funciones concretas a públicas (quitar el guion bajo) si de verdad
+las necesita un script de operador, o dejarlas privadas y mover la lógica
+que las usa dentro del propio módulo.
+
+### Corrección del PR #20
+
+La frase «teléfono depende de módulos internos y necesitará una API
+pública» se matiza: aplica a `telefono/dueno/`, no a `telefono/canal/`.

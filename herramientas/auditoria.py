@@ -34,22 +34,29 @@ def paquetes_completos() -> list[str]:
     `pip install .` de verdad) — y para entonces ya esta en produccion.
     """
     config = tomllib.loads((RAIZ / "pyproject.toml").read_text(encoding="utf-8"))
-    declarados = set(config.get("tool", {}).get("setuptools", {}).get("packages", []))
+    find = config.get("tool", {}).get("setuptools", {}).get("packages", {}).get("find", {})
+    where = find.get("where", ["."])
+    include = find.get("include", ["*"])
+
+    raiz_paquetes = RAIZ / where[0]
+    base = raiz_paquetes / "hugin"
 
     reales = set()
-    base = RAIZ / "hugin"
     for init in base.rglob("__init__.py"):
         carpeta = init.parent
-        punto = ".".join(carpeta.relative_to(RAIZ).parts)
+        punto = ".".join(carpeta.relative_to(raiz_paquetes).parts)
         reales.add(punto)
 
-    faltan = sorted(reales - declarados)
-    if not faltan:
+    from fnmatch import fnmatch
+    no_cubiertos = sorted(
+        p for p in reales if not any(fnmatch(p, patron) for patron in include)
+    )
+    if not no_cubiertos:
         return []
     return [
-        f"pyproject.toml: falta(n) en [tool.setuptools] packages: {', '.join(faltan)}",
-        "  (tiene __init__.py en disco pero no esta declarado — invisible",
-        "   con pip install -e ., reventaria en una instalacion normal)",
+        f"pyproject.toml: [tool.setuptools.packages.find] no cubre: {', '.join(no_cubiertos)}",
+        "  (tiene __init__.py en disco pero ningun patron de 'include' lo alcanza —",
+        "   invisible con pip install -e ., reventaria en una instalacion normal)",
     ]
 
 

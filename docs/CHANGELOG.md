@@ -139,3 +139,15 @@ el título se queda en una palabra.
   se revirtió. Necesita un arreglo mejor pensado.
 - «¿Se puede ir sin cita?» ordena bien pero no supera el margen de `VENTAJA`.
 - No hay `LICENSE` ni `SECURITY.md`.
+
+## 2026-09-17 a 2026-09-19
+- ADR-020/021/022 (bifrost): oye voz, entiende y clasifica, contesta en
+  prosa, cerebro Claude/Ollama intercambiable.
+- ADR-024 fases 4-6: los 4 modelos personales + diario migran de
+  midgaror a hugin/personal/, multi-inquilino. telegram/ (antes bifrost)
+  pasa a vivir dentro de hugin.
+- Servicio real en Madre: hugin-telegram (producto-bot/telegram).
+  bifrost.service queda parado, solo vuelta atrás.
+- Motores Groq y Google sumados a Claude/Ollama. Modelo local por
+  defecto pasa a qwen3:4b-instruct-2507.
+- Auditoría de fondo: 25 bugs cerrados en mente/negocio/guardado/telefono.

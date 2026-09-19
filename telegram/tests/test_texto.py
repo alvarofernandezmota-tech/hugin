@@ -226,5 +226,31 @@ class TestUnaPreguntaSeContesta(CasoBot):
         self.assertIn("me pregunto si irá bien", self.seccion(HOY))
 
 
+class TestLaColetillaDeSubirSigueSaliendo(CasoBot):
+    """Que el `sincronizar` de esta puerta llegue de verdad a Hugin.
+
+    Descubierto midiendo la extracción del issue #23: cortando la inyección
+    de `sincronizar` en `handlers/texto.py` la suite seguía en VERDE, porque
+    ninguna prueba miraba el « · subido» del final de la confirmación. El
+    dato se guardaba igual, pero el bot dejaba de decir si se había subido y
+    nadie se enteraba.
+
+    `dobles.py` pone el doble en `texto.sincronizar`; esto comprueba que ese
+    doble se usa. Las otras dos inyecciones (`_preguntar` y
+    `_responder_pregunta`) ya las sujetan las pruebas de arriba: sin ellas,
+    catorce se caen.
+    """
+
+    def test_la_tarea_de_un_mensaje_suelto_dice_que_se_subio(self):
+        texto._preguntar = _preguntar(intencion="tarea", texto="llamar al médico el 15 de octubre",
+                                      confianza="alta")
+        respuesta = self.texto_libre("recuérdame llamar al médico el 15 de octubre")
+        self.assertIn(" · subido", respuesta)
+
+    def test_el_diario_de_un_mensaje_suelto_tambien(self):
+        respuesta = self.texto_libre("he dormido fatal")
+        self.assertIn(" · subido", respuesta)
+
+
 if __name__ == "__main__":
     unittest.main()

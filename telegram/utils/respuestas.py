@@ -14,25 +14,15 @@ cuando algo falla hace falta el aviso entero.
 
 import logging
 
+# `breve` y `dia` viven en el cerebro desde la fase 1 del issue #23: son lo
+# que el bot DICE, y por eso las necesita también la consola. Se reexportan
+# aquí para que los siete handlers que ya hacían `from utils.respuestas
+# import breve` sigan igual — una sola definición, no dos que se separan.
+from hugin.bot.mensajes import breve, dia  # noqa: F401  (reexportadas)
+
 from utils.limites import longitud, recortar
 
 logger = logging.getLogger(__name__)
-
-
-def breve(mensaje_sincronizar: str) -> str:
-    """Una coletilla corta si fue bien; el aviso completo si no."""
-    if mensaje_sincronizar.startswith("⚠️"):
-        return mensaje_sincronizar
-    if "sin cambios" in mensaje_sincronizar:
-        return "sin cambios que subir"
-    if "reordenar" in mensaje_sincronizar:
-        return "subido (había cambios nuevos en GitHub)"
-    return "subido"
-
-
-def dia(fecha: str | None) -> str:
-    """«de hoy», o «del 2026-09-05» cuando lo escrito fue a otro día."""
-    return "de hoy" if fecha is None else f"del {fecha}"
 
 
 async def responder(update, texto: str, reply_markup=None) -> None:

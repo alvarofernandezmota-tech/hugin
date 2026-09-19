@@ -1,28 +1,30 @@
-"""Un mensaje suelto, sin comando, va al diario de hoy — o a lo que sea.
+"""Un mensaje suelto, sin comando: se lo damos a Hugin y se contesta.
 
-Es lo que pasa en cuanto se usa el bot de verdad: se escribe «hoy he dormido
-fatal» y se manda, sin acordarse de poner /diario delante. Antes el bot
-callaba y el texto se perdía; ahora se apunta igual que con /diario.
+Desde la fase 1 del issue #23 aquí **no se decide nada**. Lo que se
+contesta a «hoy he dormido fatal», a «recuérdame llamar al médico mañana» o
+a «hola» lo decide `hugin.bot.hugin.Hugin.procesar()`, que es el mismo bot
+que atiende por consola. Este módulo traduce: un `Update` de Telegram se
+convierte en un `Mensaje`, y la `Respuesta` que vuelve se manda al chat.
 
-Desde que existe `diario/entender.py`, antes de ir al diario se le pregunta
-si en realidad es una tarea, un hábito, una cita o un apunte —«recuérdame
-llamar al médico mañana», «he hecho deporte», «tele 3h»— y si está seguro, se
-apunta donde toca en vez de quedarse como una línea suelta de texto. Es
-**opcional y con red de seguridad**: sin `ANTHROPIC_API_KEY` en el `.env` de
-Madre, `entender()` devuelve `None` antes de intentar nada y esto se
-comporta exactamente igual que siempre. Con clave, solo actúa si está
-seguro; con duda, con un fallo de red, o si la frase es de verdad un diario,
-cae aquí abajo, al mismo sitio de siempre. La lógica de cuándo confiar vive
-en `diario/entender.py`, con sus propias pruebas: aquí solo se traduce lo
-que dice a la misma llamada y la misma confirmación que darían /tarea,
-/habito, /cita o /apunte.
+Lo que queda aquí es lo que de verdad es de Telegram:
 
-Los comandos siguen teniendo prioridad: este handler se registra el último y
-solo recibe lo que Telegram no marca como comando. Ojo: eso no es lo mismo
-que "no empieza por /". Un comando **pegado con formato de código** llega sin
-la marca `bot_command`, cae aquí, y acabaría en el diario en vez de
-ejecutarse. Pasó el 2026-09-05: treinta comandos seguidos al diario, sin un
-solo aviso. Por eso este handler no escribe nada que empiece por «/».
+- **El filtro de lo que parece un comando y no lo es.** Los comandos tienen
+  prioridad porque este handler se registra el último y solo recibe lo que
+  Telegram no marca como comando. Ojo: eso no es lo mismo que "no empieza
+  por /". Un comando **pegado con formato de código** llega sin la marca
+  `bot_command`, cae aquí, y acabaría en el diario en vez de ejecutarse.
+  Pasó el 2026-09-05: treinta comandos seguidos al diario, sin un solo
+  aviso. Por eso este handler no manda a Hugin nada que empiece por «/».
+- **Sacar la llamada del bucle de eventos.** `procesar()` de Hugin es
+  síncrona y por dentro puede tardar: clasificar con Ollama en la CPU de
+  Madre son segundos (TOPE_SEGUNDOS_OLLAMA), y `sincronizar()` hace `git
+  push` —hasta 90 s con mala red—. Dentro de la corrutina eso congela el
+  bot entero para todos los chats, no solo para quien mandó el mensaje. Un
+  único `to_thread` ahora, donde antes había tres.
+- **Quién es el inquilino y cómo se contesta.** Lo primero sale del global
+  de proceso de `utils/inquilino.py` (una copia del bot atiende a uno solo,
+  ADR-014) y entra en la `Sesion`. Lo segundo es `utils/respuestas.py`, con
+  su recorte a la longitud que admite Telegram.
 """
 
 import asyncio
@@ -31,14 +33,11 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from handlers.apunte import cuanto
-from hugin import apuntes as registro
+from hugin.bot.hugin import Hugin
+from hugin.bot.mensajes import ERROR, Mensaje, Sesion
 from hugin.guardado.sincronizar import sincronizar
-from hugin.personal import citas, conversar, entender, habitos, tareas
-from hugin.personal import fechas as fechas_personal
-from hugin.personal.diario import organizar_texto
 from utils.inquilino import actual as inquilino_actual
-from utils.respuestas import breve, dia, responder, responder_si_puedo
+from utils.respuestas import responder, responder_si_puedo
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +50,15 @@ AVISO_COMANDO = (
     "Lo que me llegó:\n{texto}"
 )
 
-# Punto de inyección para las pruebas, igual que `modulo.sincronizar` en
-# dobles.py: un `preguntar` falso para no llamar nunca a la API de verdad.
-# En producción es `None`, y `entender()` usa el suyo si hay clave puesta.
+# Punto de inyección para las pruebas: un `preguntar` falso para no llamar
+# nunca a la API de verdad. En producción es `None`, y `entender()` usa el
+# suyo si hay motor configurado.
+#
+# Siguen aquí, y no en `hugin.bot`, porque son de las PRUEBAS de esta puerta:
+# `telegram/tests/dobles.py` los deja en None en cada `setUp` y
+# `test_texto.py` los pone caso a caso. Se leen en `_cerebro()`, que corre
+# en cada mensaje, así que ponerlos después de importar el módulo funciona
+# igual que antes de la extracción.
 _preguntar = None
 
 # Lo mismo para el otro lado, el que lee y contesta (`conversar.responder`).
@@ -62,153 +67,54 @@ _preguntar = None
 _responder_pregunta = None
 
 
-async def _subir(ruta, mensaje: str) -> str:
-    # sincronizar() hace git commit y git push: hasta 90 s con mala red.
-    # Dentro de una corrutina eso congela el bot entero para todos los
-    # chats, no solo para quien mando el mensaje. to_thread lo saca del
-    # hilo del bucle de eventos, que sigue atendiendo lo demas.
-    return breve(await asyncio.to_thread(sincronizar, ruta, mensaje))
+def _cerebro() -> Hugin:
+    """Un Hugin con los motores de ESTE momento.
 
-
-async def _enrutar(update: Update, e) -> None:
-    """Aplica lo que entendió `entender()` y contesta como el comando real.
-
-    Puede lanzar `ValueError` —una «cita» sin una fecha que `fechas.py` sepa
-    leer, un «hábito» sin nombre—: lo captura `mensaje_libre` y el mensaje
-    cae al diario, igual que si `entender()` no hubiera dicho nada. No hay
-    ninguna llamada aquí que el clasificador pueda forzar a escribir texto
-    libre: cada intención va a la misma función de siempre, con los mismos
-    datos que le pasaría su comando.
+    Uno por mensaje, a propósito: `dobles.py` reemplaza `_preguntar`,
+    `_responder_pregunta` y `sincronizar` en este módulo después de
+    importarlo, y los tres se leen aquí dentro. Con un Hugin construido al
+    cargar el módulo, una prueba que inyecta su doble no inyectaría nada y
+    pasaría en verde por el camino equivocado. Construirlo no abre nada ni
+    cuesta nada.
     """
-    if e.intencion == "pregunta":
-        # La única rama que no escribe nada: lee los resúmenes y contesta.
-        # `conversar` no importa ni una función que escriba —lo vigila
-        # `diario/tests/test_conversar.py` sobre el propio fichero—, así que
-        # esta rama no puede tocar un JSON aunque el modelo se empeñe.
-        #
-        # `to_thread` porque `responder()` llama a la API y puede tardar
-        # segundos: dentro de la corrutina congelaría el bot entero, igual
-        # que pasaba con `sincronizar`.
-        inq = inquilino_actual()
-        respuesta = await asyncio.to_thread(
-            conversar.responder, e.texto or "", _responder_pregunta, None, inq)
-        if respuesta is None:
-            # Sin clave, red caída o respuesta vacía. Al diario, como todo.
-            raise ValueError("no se pudo contestar la pregunta")
-        await responder(update, respuesta)
-    elif e.intencion == "tarea":
-        if not e.texto:
-            raise ValueError("tarea sin texto")
-        inq = inquilino_actual()
-        t = tareas.agregar(e.texto, inq)
-        subido = await _subir(inq.ruta / tareas.FICHERO, f"tareas: {inq.nombre}")
-        cuando = ""
-        if t.get("fecha"):
-            cuando = f" · {t['fecha']}" + (f" {t['hora']}" if t.get("hora") else "")
-        await responder(update, f"✅ [{t['id']}] {t['texto']}{cuando} · {subido}")
-    elif e.intencion == "cita":
-        if not e.texto:
-            raise ValueError("cita sin texto")
-        inq = inquilino_actual()
-        cita, solapan = citas.agregar(e.texto, inq)
-        subido = await _subir(inq.ruta / citas.FICHERO, f"citas: {inq.nombre}")
-        cuando = f"{cita['fecha']} {cita['hora']}" if cita.get("hora") else f"{cita['fecha']} (todo el día)"
-        texto_conf = f"📅 [{cita['id']}] {cita['texto']} · {cuando} · {subido}"
-        aviso = citas.aviso_choques(solapan)
-        await responder(update, f"{texto_conf}\n{aviso}" if aviso else texto_conf)
-    elif e.intencion == "habito":
-        if not e.nombre:
-            raise ValueError("hábito sin nombre")
-        inq = inquilino_actual()
-        # habitos.marcar() SÍ resuelve lenguaje natural internamente
-        # (normalizar_fecha llama a fechas.normalizar hacia atrás) — a
-        # diferencia de apuntes.apuntar(), que a propósito no lo hace. No
-        # hay aquí el bug que sí había en la rama "apunte".
-        fecha, nombre, marca = habitos.marcar(e.nombre, hecho=e.hecho, fecha=e.cuando, inq=inq, valor=e.valor)
-        subido = await _subir(inq.ruta / habitos.FICHERO, f"habitos: {inq.nombre}")
-        await responder(update, f"{habitos.formato(marca)} {nombre} — {fecha} · {subido}")
-    elif e.intencion == "apunte":
-        if not e.nombre:
-            raise ValueError("apunte sin nombre")
-        inq = inquilino_actual()
-        # `e.cuando` viene en español tal cual lo dijo quien escribe
-        # (entender.py:119: "'ayer', 'el lunes'... tal cual"), y
-        # `apuntar()` espera AAAA-MM-DD (hugin/apuntes.py:82). Sin
-        # resolverlo aquí, normalizar_fecha('ayer') lanza ValueError y el
-        # apunte se pierde silenciosamente como prosa del diario, que es
-        # justo lo que apunte.py:71 ya evita para el comando /apunte.
-        # Hacia ATRÁS: un apunte habla de algo que ya pasó.
-        fecha = fechas_personal.normalizar(e.cuando, hacia_atras=True) if e.cuando else None
-        apunte = registro.apuntar(e.nombre, valor=e.valor, unidad=e.unidad, fecha=fecha, inq=inq)
-        subido = await _subir(inq.ruta / registro.FICHERO, f"apuntes: {inq.nombre}")
-        await responder(update, f"📝 {apunte['que']}{cuanto(apunte)} — {apunte['fecha']} · {subido}")
-    else:
-        # entender() nunca debería devolver otra cosa (solo alta confianza y
-        # sin ser "diario"), pero si algún día cambia el esquema, esto cae al
-        # diario en vez de intentar adivinar qué hacer con una intención que
-        # no conoce.
-        raise ValueError(f"intención sin manejar: {e.intencion!r}")
+    return Hugin(preguntar=_preguntar,
+                 responder_pregunta=_responder_pregunta,
+                 # Lambda y no la función a pelo: `dobles.py` hace
+                 # `texto.sincronizar = …` para que las pruebas no toquen
+                 # git ni la red, y así se resuelve el global en la llamada.
+                 sincronizar=lambda ruta, mensaje: sincronizar(ruta, mensaje))
+
+
+def _sesion() -> Sesion:
+    """Quién habla. El chat de Telegram es a la vez el actor y la conversación."""
+    inq = inquilino_actual()
+    return Sesion(inquilino=inq, actor_id=inq.nombre,
+                  conversacion_id=inq.nombre, canal="telegram")
 
 
 async def procesar(update: Update, texto: str) -> None:
-    """Un texto ya en mano —escrito, o dictado y transcrito—: se entiende, o
-    al diario de hoy.
+    """Un texto ya en mano —escrito, o dictado y transcrito—: lo atiende Hugin.
 
     Esto es lo que comparten `mensaje_libre` (texto suelto) y `mensaje_voz`
     (una nota de voz ya pasada por Whisper, en `handlers/voz.py`): a partir
-    de aquí da igual de dónde salió el texto, es el mismo mensaje suelto de
-    siempre y pasa por el mismo camino. `mensaje_libre` sigue siendo quien
-    filtra lo que empieza por «/» —una transcripción nunca puede empezar por
-    ahí de casualidad, así que `mensaje_voz` no repite ese aviso.
+    de aquí da igual de dónde salió el texto. `mensaje_libre` sigue siendo
+    quien filtra lo que empieza por «/» —una transcripción nunca puede
+    empezar por ahí de casualidad, así que `mensaje_voz` no repite ese aviso.
     """
-    # Un saludo suelto («hola», «gracias», «vale») no es una entrada de
-    # diario. Antes de esto, caía aquí abajo igual que cualquier otra cosa
-    # sin clasificar y se escribía tal cual — comprobado en Madre el
-    # 2026-09-18. Va ANTES de entender(): ni hace falta LLM para saberlo, ni
-    # tiene sentido pagar la llamada por algo que un regex ya resuelve.
-    if entender.es_saludo(texto):
-        await responder(update, "👋 ¡Hola! No he apuntado nada — dime una tarea, "
-                                "un hábito, una cita, o algo para el diario.")
+    mensaje = Mensaje(texto=texto, sesion=_sesion())
+    respuesta = await asyncio.to_thread(_cerebro().procesar, mensaje)
+    if respuesta.texto.startswith(ERROR):
+        # El camino de error va por el que no puede reventar: si el reply
+        # falla por red, `responder` volvería a fallar y la excepción
+        # saldría del handler para morir en «No error handlers are
+        # registered» — con lo escrito ya subido a GitHub y el chat mudo.
+        await responder_si_puedo(update, respuesta.texto)
         return
-
-    # to_thread por el mismo motivo que en la rama "pregunta", más abajo:
-    # con MIDGAROR_LLM=ollama la llamada corre en la CPU de Madre y puede
-    # tardar varios segundos (TOPE_SEGUNDOS_OLLAMA en entender.py). Sin
-    # sacarla del hilo del bucle de eventos, esos segundos congelan el bot
-    # entero para todos los chats mientras clasifica uno solo.
-    #
-    # inquilino_actual() aquí, y no más abajo en cada rama: "pregunta" sobre
-    # el servicio que se ofrece (tarifas/faq) solo se reconoce con el
-    # inquilino delante — sin él, entender() se queda en su sentido más
-    # estrecho (solo lo ya apuntado). Ver personal/entender.py::_instrucciones.
-    inq = inquilino_actual()
-    entendido = await asyncio.to_thread(entender.entender, texto, _preguntar, inq)
-    if entendido is not None:
-        try:
-            await _enrutar(update, entendido)
-            return
-        except ValueError:
-            logger.info("«%s» clasificado como %s pero no se pudo aplicar; va al diario",
-                       texto[:80], entendido.intencion)
-        except Exception:
-            logger.exception("Error apuntando %s desde el mensaje suelto; va al diario",
-                             entendido.intencion)
-
-    # «cené con mi hermana ayer» va al día de ayer, sin el «ayer». Solo el
-    # pasado sin ambigüedad cuenta (fechas.fecha_detras): «tengo examen
-    # mañana» es una frase de hoy y se queda entera.
-    texto, fecha = fechas_personal.fecha_detras(texto)
-    try:
-        ruta = organizar_texto(texto, fecha=fecha)
-        subido = await _subir(ruta, None)
-        await responder(update, f"📔 Apuntado en el diario {dia(fecha)} · {subido}")
-    except Exception as e:
-        logger.exception("Error escribiendo un mensaje suelto en el diario")
-        await responder_si_puedo(update, f"❌ Error: {e}")
+    await responder(update, respuesta.texto)
 
 
 async def mensaje_libre(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Cualquier texto que no sea un comando: se entiende, o al diario de hoy."""
+    """Cualquier texto que no sea un comando: lo atiende Hugin."""
     texto = (update.effective_message.text or "").strip()
     if not texto:
         return

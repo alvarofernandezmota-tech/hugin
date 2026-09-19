@@ -29,6 +29,10 @@ from telegram.ext import ContextTypes
 from hugin import apuntes as registro
 from hugin.guardado.sincronizar import sincronizar
 from hugin.personal import fechas
+# `cuanto()` se fue al cerebro con la extracción del enrutado (issue #23,
+# fase 1): la usan el mensaje suelto y este comando, y dos copias que se
+# separan es justo lo que ya rompió la confirmación de /apunte una vez.
+from hugin.personal.enrutar import cuanto
 from utils.inquilino import actual as inquilino_actual
 from utils.respuestas import breve, responder, responder_si_puedo
 
@@ -92,28 +96,11 @@ def _cantidad(linea: dict) -> str:
 
     Para una LÍNEA DE RESUMEN (`registro.resumen_dia`/`resumen_semana`), que
     trae el total ya sumado en `total`. Un apunte recién creado no tiene esa
-    clave —tiene `valor`—: para ese caso está `cuanto()`, abajo.
+    clave —tiene `valor`—: para ese caso está `cuanto()`, que ahora vive en
+    `hugin.personal.enrutar` y se importa arriba.
     """
     unidad = f" {linea['unidad']}" if linea.get("unidad") else ""
     return f"{linea['total']}{unidad}"
-
-
-def cuanto(apunte: dict) -> str:
-    """« 3h», « 1,5 l», o cadena vacía si el apunte no lleva valor.
-
-    Para confirmar el apunte que se acaba de crear, no una línea de resumen:
-    `registro.apuntar()` devuelve `valor`/`unidad`, nunca `total`. Usar
-    `_cantidad()` aquí —como hacía este módulo hasta ahora— revienta con
-    `KeyError: 'total'` en cuanto el apunte lleva un valor, que es el caso
-    más normal («/apunte agua 1,5 l»): el dato se guardaba bien, pero la
-    confirmación moría con «❌ Error: 'total'» en vez de decir lo que se
-    apuntó. No lo cogía ninguna prueba porque `test_apunte.py` comprueba el
-    JSON escrito, no el texto de la respuesta.
-    """
-    if "valor" not in apunte:
-        return ""
-    unidad = f" {apunte['unidad']}" if apunte.get("unidad") else ""
-    return f" {apunte['valor']}{unidad}"
 
 
 def pintar(resumen: dict, cabecera: str) -> str:

@@ -27,11 +27,16 @@ class TestPaquetesCompletosDetectaUnoQueFalta(unittest.TestCase):
     def _repo_de_mentira(self, declarados: list[str], carpetas: list[str]) -> Path:
         raiz = Path(tempfile.mkdtemp(prefix="auditoria-pruebas-"))
         self.addCleanup(lambda: __import__("shutil").rmtree(raiz, ignore_errors=True))
+        include = repr(declarados).replace("'", '"')
         (raiz / "pyproject.toml").write_text(
-            "[tool.setuptools]\npackages = " + repr(declarados).replace("'", '"') + "\n",
+            "[tool.setuptools]\n"
+            'package-dir = {"" = "src"}\n\n'
+            "[tool.setuptools.packages.find]\n"
+            'where = ["src"]\n'
+            f"include = {include}\n",
             encoding="utf-8")
         for punto in carpetas:
-            carpeta = raiz / Path(*punto.split("."))
+            carpeta = raiz / "src" / Path(*punto.split("."))
             carpeta.mkdir(parents=True, exist_ok=True)
             (carpeta / "__init__.py").write_text("", encoding="utf-8")
         return raiz
@@ -58,7 +63,7 @@ class TestPaquetesCompletosDetectaUnoQueFalta(unittest.TestCase):
         # excepcion silenciada, no porque el codigo funcione.
         raiz = self._repo_de_mentira(declarados=["hugin"], carpetas=["hugin"])
         config = tomllib.loads((raiz / "pyproject.toml").read_text(encoding="utf-8"))
-        self.assertEqual(config["tool"]["setuptools"]["packages"], ["hugin"])
+        self.assertEqual(config["tool"]["setuptools"]["packages"]["find"]["include"], ["hugin"])
 
 
 class TestWorkflowsEnSuSitioContraElRepoReal(unittest.TestCase):

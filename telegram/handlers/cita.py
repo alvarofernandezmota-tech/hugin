@@ -25,6 +25,7 @@ AYUDA = (
     "/cita médico mañana a las 10 — apunta una cita\n"
     "/cita mover 3 el lunes a las 17 — la cambia de hora\n"
     "/cita cancelar 3 — la retira\n"
+    "/cita confirmar 3 17:00 — fija la hora si se guardó sin franja\n"
     "/agenda — las citas de hoy\n"
     "/agenda semana — los siete días desde hoy"
 )
@@ -46,10 +47,16 @@ def _cuando(cita: dict) -> str:
 
 
 def _confirmacion(cita: dict, solapan: list[dict], subido: str) -> str:
-    """La cita guardada y, si choca con otra, el aviso debajo."""
+    """La cita guardada y, si choca con otra o quedó sin franja, el aviso debajo."""
     texto = f"📅 [{cita['id']}] {cita['texto']} · {_cuando(cita)} · {subido}"
-    aviso = citas.aviso_choques(solapan)
-    return f"{texto}\n{aviso}" if aviso else texto
+    avisos = []
+    if cita.get("sin_franja"):
+        avisos.append(f"🕐 ¿{cita['hora']} de la mañana o de la tarde? "
+                      f"/cita confirmar {cita['id']} <hora>")
+    aviso_choque = citas.aviso_choques(solapan)
+    if aviso_choque:
+        avisos.append(aviso_choque)
+    return "\n".join([texto, *avisos]) if avisos else texto
 
 
 async def comando_cita(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -60,7 +67,7 @@ async def comando_cita(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
     try:
         inq = inquilino_actual()
-        if args[0] in ("mover", "cancelar"):
+        if args[0] in ("mover", "cancelar", "confirmar"):
             if len(args) < 2 or not args[1].isdigit():
                 await responder(update, f"❌ Falta el número de la cita.\n\n{AYUDA}")
                 return
@@ -70,6 +77,15 @@ async def comando_cita(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 subido = await _subir(inq)
                 await responder(update,
                     f"🗑️ [{cita['id']}] {cita['texto']} · {_cuando(cita)} · {subido}")
+                return
+            if args[0] == "confirmar":
+                if len(args) < 3:
+                    await responder(update, f"❌ Falta la hora (HH:MM).\n\n{AYUDA}")
+                    return
+                cita = citas.confirmar_hora(id_cita, args[2], inq)
+                subido = await _subir(inq)
+                await responder(update,
+                    f"🕐 [{cita['id']}] {cita['texto']} · {_cuando(cita)} · {subido}")
                 return
             if len(args) < 3:
                 await responder(update, f"❌ Falta el cuándo.\n\n{AYUDA}")

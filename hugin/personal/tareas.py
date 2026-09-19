@@ -41,7 +41,7 @@ from pathlib import Path
 
 from hugin.guardado import almacen
 from hugin.personal import fechas
-from hugin.personal.fechas import interpretar
+from hugin.personal.fechas import interpretar, interpretar_con_franja
 
 FORMATO_FECHA = "%Y-%m-%d %H:%M"
 ESTADOS = ("pendiente", "en_proceso", "hecha")
@@ -109,13 +109,17 @@ def activas(tareas: list[dict]) -> list[dict]:
     return [t for t in tareas if not t.get("borrada")]
 
 
-def _cuando(texto: str, ahora: datetime | None) -> tuple[str, str | None, str | None]:
-    """(texto sin la expresión temporal, fecha, hora). Sin expresión, todo queda como está."""
-    encontrado = interpretar(texto, ahora, hacia_atras=False)
+def _cuando(texto: str, ahora: datetime | None) -> tuple[str, str | None, str | None, bool]:
+    """(texto sin la expresión temporal, fecha, hora, sin_franja). Sin expresión, todo queda como está.
+
+    Misma regla que `citas.py`: una hora sin franja no se rechaza, se marca
+    —aquí quien apunta y quien confirma la hora es la misma persona.
+    """
+    encontrado = interpretar_con_franja(texto, ahora, hacia_atras=False)
     if not encontrado:
-        return texto.strip(), None, None
-    fecha, hora, resto = encontrado
-    return (resto.strip() or texto.strip()), fecha, hora
+        return texto.strip(), None, None, False
+    fecha, hora, resto, sin_franja = encontrado
+    return (resto.strip() or texto.strip()), fecha, hora, sin_franja
 
 
 # ---- contrato con el bot ------------------------------------------------
@@ -125,7 +129,7 @@ def agregar(texto: str, inq=None, ahora: datetime | None = None) -> dict:
     """Crea una tarea. Si el texto dice cuándo ("mañana a las 10"), lo guarda como fecha."""
     if not texto.strip():
         raise ValueError("la tarea no puede estar vacía")
-    limpio, fecha, hora = _cuando(texto, ahora)
+    limpio, fecha, hora, sin_franja = _cuando(texto, ahora)
     tareas = cargar(inq)
     nueva = {
         "id": max((t["id"] for t in tareas), default=0) + 1,
@@ -136,6 +140,8 @@ def agregar(texto: str, inq=None, ahora: datetime | None = None) -> dict:
         "creada": (ahora or fechas.ahora()).strftime(FORMATO_FECHA),
         "hecha_el": None,
     }
+    if sin_franja:
+        nueva["sin_franja"] = True
     tareas.append(nueva)
     guardar(tareas, inq)
     return nueva
@@ -169,11 +175,23 @@ def editar(id_tarea: int, texto: str, inq=None, ahora: datetime | None = None) -
     """Cambia el texto. Si el texto nuevo dice cuándo, también la fecha."""
     if not texto.strip():
         raise ValueError("el texto no puede quedar vacío")
-    limpio, fecha, hora = _cuando(texto, ahora)
+    limpio, fecha, hora, sin_franja = _cuando(texto, ahora)
     cambios = {"texto": limpio}
     if fecha:
-        cambios.update(fecha=fecha, hora=hora)
+        cambios.update(fecha=fecha, hora=hora, sin_franja=sin_franja or None)
     return _cambiar(id_tarea, inq, **cambios)
+
+
+def confirmar_hora(id_tarea: int, hora: str, inq=None) -> dict:
+    """Fija la hora de una tarea que se guardó `sin_franja` y quita la marca.
+
+    `hora` es `'HH:MM'` a pelo, no texto libre: mismo contrato que
+    `citas.confirmar_hora()`.
+    """
+    h, _, m = hora.partition(":")
+    if not h.isdigit() or not m.isdigit() or not (0 <= int(h) <= 23 and 0 <= int(m) <= 59):
+        raise ValueError(f"hora no válida: {hora!r} (formato HH:MM)")
+    return _cambiar(id_tarea, inq, hora=f"{int(h):02d}:{int(m):02d}", sin_franja=None)
 
 
 def aplazar(id_tarea: int, cuando: str, inq=None, ahora: datetime | None = None) -> dict:
@@ -205,6 +223,8 @@ def _linea(t: dict, hoy: str | None = None) -> str:
     if t.get("fecha"):
         etiqueta = "hoy" if t["fecha"] == hoy else t["fecha"]
         cuando = f" · {etiqueta}" + (f" {t['hora']}" if t.get("hora") else "")
+        if t.get("sin_franja"):
+            cuando += " (¿mañana o tarde?)"
         if hoy and t["fecha"] < hoy and t["estado"] != "hecha":
             cuando += " ⚠️ vencida"
     return f"  {ICONO[t['estado']]} [{t['id']}] {t['texto']}{cuando}"

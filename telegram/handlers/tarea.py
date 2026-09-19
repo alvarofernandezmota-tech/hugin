@@ -27,6 +27,7 @@ AYUDA = (
     "/tarea reabrir 3 — la devuelve a pendiente\n"
     "/tarea editar 3 comprar pan y leche — le cambia el texto\n"
     "/tarea aplazar 3 el lunes por la tarde — le cambia la fecha\n"
+    "/tarea confirmar 3 17:00 — fija la hora si se guardó sin franja\n"
     "/tarea borrar 3 — la retira de la lista\n"
     "/tareas — las abiertas y las últimas hechas"
 )
@@ -35,9 +36,10 @@ AYUDA = (
 SOLO_ID = {"empezar": tareas.empezar, "hecha": tareas.hecha,
            "reabrir": tareas.reabrir, "borrar": tareas.borrar}
 ICONO = {"empezar": "◐", "hecha": "✅", "reabrir": "○", "borrar": "🗑️",
-         "editar": "✏️", "aplazar": "📅"}
+         "editar": "✏️", "aplazar": "📅", "confirmar": "🕐"}
 # Y los que además necesitan texto detrás del id.
-CON_TEXTO = {"editar": tareas.editar, "aplazar": tareas.aplazar}
+CON_TEXTO = {"editar": tareas.editar, "aplazar": tareas.aplazar,
+             "confirmar": tareas.confirmar_hora}
 
 
 async def _subir(inq) -> str:
@@ -75,17 +77,20 @@ async def comando_tarea(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 t = SOLO_ID[accion](id_tarea, inq)
             else:
                 if not resto:
-                    falta = "el texto nuevo" if accion == "editar" else "el cuándo"
+                    falta = {"editar": "el texto nuevo", "confirmar": "la hora (HH:MM)"}.get(
+                        accion, "el cuándo")
                     await responder(update, f"❌ Falta {falta}.\n\n{AYUDA}")
                     return
                 t = CON_TEXTO[accion](id_tarea, " ".join(resto), inq)
             subido = await _subir(inq)
-            await responder(update, 
+            await responder(update,
                 f"{ICONO[accion]} [{t['id']}] {t['texto']}{_cuando(t)} · {subido}")
             return
         t = tareas.agregar(" ".join(args), inq)
         subido = await _subir(inq)
-        await responder(update, f"✅ [{t['id']}] {t['texto']}{_cuando(t)} · {subido}")
+        aviso = (f"\n🕐 ¿{t['hora']} de la mañana o de la tarde? "
+                f"/tarea confirmar {t['id']} <hora>") if t.get("sin_franja") else ""
+        await responder(update, f"✅ [{t['id']}] {t['texto']}{_cuando(t)} · {subido}{aviso}")
     except ValueError as e:
         await responder(update, f"⚠️ {e}")
     except Exception as e:

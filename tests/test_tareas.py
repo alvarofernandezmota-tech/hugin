@@ -141,6 +141,32 @@ class TestTareas(unittest.TestCase):
         with self.assertRaises(ValueError):
             tareas.agregar("una", ahora=AHORA)
 
+    def test_hora_sin_franja_se_marca(self):
+        t = tareas.agregar("médico mañana a las 5", self.inq, AHORA)
+        self.assertTrue(t["sin_franja"])
+        self.assertIn("(¿mañana o tarde?)", tareas.resumen(self.inq, hoy=HOY))
+
+    def test_hora_acotada_no_se_marca(self):
+        t = tareas.agregar("médico mañana a las 17", self.inq, AHORA)
+        self.assertNotIn("sin_franja", t)
+
+    def test_confirmar_hora_fija_la_hora_y_quita_la_marca(self):
+        t = tareas.agregar("médico mañana a las 5", self.inq, AHORA)
+        confirmada = tareas.confirmar_hora(t["id"], "17:00", self.inq)
+        self.assertEqual(confirmada["hora"], "17:00")
+        self.assertFalse(confirmada.get("sin_franja"))
+        self.assertNotIn("(¿mañana o tarde?)", tareas.resumen(self.inq, hoy=HOY))
+
+    def test_confirmar_hora_con_formato_invalido_falla_claro(self):
+        t = tareas.agregar("médico mañana a las 5", self.inq, AHORA)
+        for mala in ("cinco de la tarde", "25:00", "10:70", "10"):
+            with self.assertRaises(ValueError):
+                tareas.confirmar_hora(t["id"], mala, self.inq)
+
+    def test_confirmar_hora_de_tarea_inexistente_falla_claro(self):
+        with self.assertRaises(ValueError):
+            tareas.confirmar_hora(99, "17:00", self.inq)
+
 
 if __name__ == "__main__":
     unittest.main()

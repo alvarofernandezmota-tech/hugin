@@ -20,6 +20,8 @@ siendo su origen —son copias verbatim, con su número y su fecha original—;
 | [019](019-cerebro-de-gjallarhorn-en-hugin.md) | El cerebro sale de gjallarhorn a hugin como submódulo (portado de midgaror) | Aceptado, cerrado — hugin ya no es submódulo, es el repo del producto (ver ADR-024) |
 | [024](024-un-cerebro-dos-puertas.md) | «Un cerebro y dos puertas»: hugin como el producto entero, telegram/ y telefono/ como puertas finas (portado de midgaror) | En marcha — fases 1-2 cerradas, `personal/` ya portado; ver nota dentro del fichero |
 | [025](025-fusion-mente-personal.md) | Un solo cerebro, gobernado por las capacidades del inquilino — la decisión del punto 4 del ADR-024 | Aceptado, fase 1 de 4 cerrada |
+| [026](026-postgres-estructurado.md) | Datos estructurados en Postgres; diario y conocimiento editable permanecen en ficheros | Aceptado, fase inicial cerrada: tareas, citas, hábitos y apuntes tienen adaptador Postgres |
+| [027](027-hugin-nucleo-conectores.md) | Hugin como núcleo; Telegram y teléfono como conectores | Propuesto — auditoría de arquitectura iniciada |
 
 ## Convención
 

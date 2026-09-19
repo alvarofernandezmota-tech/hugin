@@ -64,6 +64,8 @@ def _psycopg():
         ) from error
     return psycopg, dict_row, Json
 
+ALTER_CITAS_SIN_FRANJA = "ALTER TABLE citas ADD COLUMN IF NOT EXISTS sin_franja BOOLEAN NOT NULL DEFAULT FALSE"
+
 TABLAS = (
     """
     CREATE TABLE IF NOT EXISTS tareas (
@@ -85,7 +87,8 @@ TABLAS = (
         hora TIME,
         duracion INTEGER NOT NULL DEFAULT 60,
         creada TIMESTAMP NOT NULL,
-        cancelada BOOLEAN NOT NULL DEFAULT FALSE
+        cancelada BOOLEAN NOT NULL DEFAULT FALSE,
+        sin_franja BOOLEAN NOT NULL DEFAULT FALSE
     )
     """,
     """
@@ -139,6 +142,7 @@ def inicializar_esquema(inq=None) -> None:
     with conectar(inq) as conn:
         for tabla in TABLAS:
             conn.execute(tabla)
+        conn.execute(ALTER_CITAS_SIN_FRANJA)
         conn.commit()
 
 
@@ -220,7 +224,7 @@ def guardar_tareas(tareas: list[dict], inq=None) -> None:
 def cargar_citas(inq=None) -> list[dict]:
     with conectar(inq) as conn:
         filas = conn.execute(
-            "SELECT id, texto, fecha, hora, duracion, creada, cancelada "
+            "SELECT id, texto, fecha, hora, duracion, creada, cancelada, sin_franja "
             "FROM citas ORDER BY id"
         ).fetchall()
     return [
@@ -232,6 +236,7 @@ def cargar_citas(inq=None) -> list[dict]:
             "duracion": f["duracion"],
             "creada": _de_marca_temporal(f["creada"]),
             **({"cancelada": True} if f["cancelada"] else {}),
+            **({"sin_franja": True} if f["sin_franja"] else {}),
         }
         for f in filas
     ]
@@ -242,12 +247,13 @@ def guardar_citas(citas: list[dict], inq=None) -> None:
         conn.execute("TRUNCATE citas")
         for c in citas:
             conn.execute(
-                "INSERT INTO citas (id, texto, fecha, hora, duracion, creada, cancelada) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                "INSERT INTO citas (id, texto, fecha, hora, duracion, creada, cancelada, sin_franja) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     c["id"], c["texto"], _a_fecha(c["fecha"]), _a_hora(c.get("hora")),
                     c["duracion"], _a_marca_temporal(c["creada"]),
                     bool(c.get("cancelada", False)),
+                    bool(c.get("sin_franja", False)),
                 ),
             )
         conn.commit()

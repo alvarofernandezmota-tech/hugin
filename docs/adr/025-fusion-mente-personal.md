@@ -109,6 +109,22 @@ La regla que da sentido al repo sigue mandando: **ningún canal se importa
 aquí**. La fusión pasa entera dentro de `hugin/`; `telegram/` y `telefono/`
 siguen siendo puertas finas que no saben que la otra existe.
 
+## Pendiente en Madre (nadie de esta sesión tiene acceso ahí)
+
+Checklist para cuando se despliegue lo de hoy, en orden:
+
+1. **Actualizar el código**: `git pull` en el checkout de Madre a `main`
+   (una vez fusionado este PR), reinstalar si `pyproject.toml` cambió, y
+   reiniciar `hugin-telegram.service`.
+2. **Claves de API para `GJALLARHORN_LLM=auto`**: con solo `ANTHROPIC_API_KEY`
+   puesta, `auto` prueba Claude y cae a Ollama si falla — ya vale así. Si se
+   quiere que pruebe también Groq/Google antes de caer a Ollama, faltan
+   `GROQ_API_KEY`/`GOOGLE_API_KEY` en el `.env`.
+3. **El inquilino real** (`inquilinos/alvaro-fernandez/`, hoy solo en este
+   sandbox, gitignored): copiarlo a la ruta que apunte `INQUILIONOS` en
+   Madre, y rellenar los `TODO` de `tarifas.md`/`faq.md` con precios y FAQ
+   reales antes de dárselo a nadie a probar.
+
 ## Pendiente de otro repo
 
 Este ADR documenta la decisión tomada en esta sesión de trabajo. Las

@@ -59,6 +59,35 @@ inquilinos con capacidades distintas, atendidos por el mismo motor.
    con `tareas`/`habitos`/`apuntes` entiende de diario. Un inquilino con
    varias capacidades a la vez (el caso del autónomo del docstring de
    `inquilino.py`) entiende de las dos cosas sin bifurcar código.
+
+   **Primer paso, cerrado el 2026-09-19**: `personal/conversar.py` —el lado
+   de *leer*, no el de clasificar— ya ve el conocimiento de negocio
+   (`tarifas.md`/`faq.md`, vía `conocimiento.para_prompt()`) cuando el
+   inquilino tiene capacidad `tarifas` o `faq`, con la misma regla de la
+   casa ("un precio sale de la tabla o no sale") repetida en sus
+   `INSTRUCCIONES`. Se hizo contra un caso real, no especulativo: el propio
+   inquilino de Álvaro Fernández (`inquilinos/alvaro-fernandez/`, fuera del
+   repo) tiene capacidades mixtas —persona y el negocio de ofrecer hugin
+   como servicio— y hoy ya puede contestar por Telegram a «¿cuánto cuesta
+   el plan negocio?» tirando de su propio `tarifas.md`.
+
+   **Segundo paso, mismo día**: `personal/entender.py` amplía su definición
+   de la intención `pregunta` para cubrir también preguntas sobre el
+   servicio que se ofrece, no solo sobre lo ya apuntado. Sin esto, esa
+   frase caía en `diario` por defecto —el valor por defecto ante la duda—
+   y `conversar.py` nunca llegaba a verla, aunque ya supiera leer
+   `tarifas.md`. Con los dos pasos, el flujo completo funciona: clasificar
+   → leer → contestar con el precio real.
+
+   **Tercer paso, mismo día**: ya no es genérico. `entender()` acepta `inq`
+   y `_instrucciones(inq)` solo ofrece la lectura de "pregunta de servicio"
+   cuando `inq.puede("tarifas")` o `inq.puede("faq")` de verdad — un
+   inquilino puramente personal ni siquiera ve esa opción en el prompt. El
+   llamador real (`telegram/handlers/texto.py::procesar`) ya pasa
+   `inquilino_actual()`. Con los tres pasos, la fase 2 tiene su primer caso
+   de uso completo y de verdad gobernado por capacidades, sin router
+   especulativo: mismo `entender()`/`conversar()` de siempre, que se
+   comportan distinto según lo que el inquilino puede hacer.
 3. **Un modelo de cita único** — `mente.recepcion.Cita` (con `acotada`,
    `franja`, el flujo de negocio) y el `dict` de `personal/citas.py` (con
    `sin_franja`, `duracion`, choques) comparten ya casi el mismo problema
@@ -79,6 +108,22 @@ inquilinos con capacidades distintas, atendidos por el mismo motor.
 La regla que da sentido al repo sigue mandando: **ningún canal se importa
 aquí**. La fusión pasa entera dentro de `hugin/`; `telegram/` y `telefono/`
 siguen siendo puertas finas que no saben que la otra existe.
+
+## Pendiente en Madre (nadie de esta sesión tiene acceso ahí)
+
+Checklist para cuando se despliegue lo de hoy, en orden:
+
+1. **Actualizar el código**: `git pull` en el checkout de Madre a `main`
+   (una vez fusionado este PR), reinstalar si `pyproject.toml` cambió, y
+   reiniciar `hugin-telegram.service`.
+2. **Claves de API para `GJALLARHORN_LLM=auto`**: con solo `ANTHROPIC_API_KEY`
+   puesta, `auto` prueba Claude y cae a Ollama si falla — ya vale así. Si se
+   quiere que pruebe también Groq/Google antes de caer a Ollama, faltan
+   `GROQ_API_KEY`/`GOOGLE_API_KEY` en el `.env`.
+3. **El inquilino real** (`inquilinos/alvaro-fernandez/`, hoy solo en este
+   sandbox, gitignored): copiarlo a la ruta que apunte `INQUILIONOS` en
+   Madre, y rellenar los `TODO` de `tarifas.md`/`faq.md` con precios y FAQ
+   reales antes de dárselo a nadie a probar.
 
 ## Pendiente de otro repo
 

@@ -58,6 +58,7 @@ En midgaror había un solo diario y `tareas.resumen()`/`agenda.resumen()`/
 """
 
 from hugin import apuntes as registro
+from hugin.mente import conocimiento
 from hugin.personal import citas, entender, habitos, tareas
 
 # Cuánto texto de tus datos se le enseña al modelo, como mucho.
@@ -86,18 +87,21 @@ TOPE_PALABRAS = 400
 
 INSTRUCCIONES = """Eres el diario personal de alguien, contestando por \
 Telegram a una pregunta sobre sus propios datos. Abajo van sus tareas, su \
-agenda, sus hábitos y sus apuntes de hoy, tal y como se los pintaría la app.
+agenda, sus hábitos y sus apuntes de hoy, tal y como se los pintaría la app \
+— y, si además ofrece un servicio a terceros, sus tarifas y su FAQ.
 
 Contesta corto y directo, como contestaría un amigo que tiene la lista \
 delante. Sin saludos, sin «según tus datos», sin repetir la pregunta. Si la \
 respuesta son tres cosas, son tres líneas, no un párrafo.
 
-Tres reglas que no se saltan:
+Cuatro reglas que no se saltan:
 
 - **Solo lo que está abajo.** Si la respuesta no está en esos datos, dilo: \
 «no tienes nada apuntado de eso». No completes con lo que suene razonable.
 - **No inventes fechas, números ni nombres.** Si una tarea no tiene fecha, \
 no tiene fecha; no es «seguramente esta semana».
+- **Un precio, si lo hay, sale EXACTO del bloque «SERVICIO QUE OFRECES».** \
+Ni un céntimo distinto, ni un servicio que no esté ahí escrito.
 - **No prometas hacer nada.** No puedes crear tareas, citas ni apuntes \
 desde aquí. Si te piden que apuntes algo, di que lo escriban sin el signo \
 de interrogación y se apunta solo.
@@ -146,18 +150,29 @@ def _apuntes_de_hoy(inq=None) -> str:
 def datos(inq=None) -> str:
     """Todo lo que el modelo puede ver, en el mismo formato que lo ves tú.
 
-    Cuatro bloques con título. El título importa: sin él, una lista de
-    fechas sueltas no se distingue de otra, y el modelo mezcla una cita con
-    una tarea.
+    Cuatro bloques con título, más uno quinto **solo si el inquilino tiene
+    capacidad de negocio** (`tarifas` o `faq`): el mismo `tarifas.md`/`faq.md`
+    que lee `mente/cerebro.py` para el recepcionista telefónico. Es el caso
+    de un inquilino mixto —persona y negocio a la vez, ADR-024— al que le
+    preguntan por Telegram cuánto cuesta el servicio que ofrece: sin este
+    bloque, `conversar()` no tiene de dónde sacar la respuesta y diría que no
+    lo sabe aunque el precio esté escrito ahí al lado.
+
+    El título importa: sin él, una lista de fechas sueltas no se distingue
+    de otra, y el modelo mezcla una cita con una tarea.
     """
-    bloques = (
+    bloques = [
         ("TAREAS", lambda: tareas.resumen(inq), "No se pudieron leer las tareas."),
         ("AGENDA (esta semana)", lambda: citas.resumen(inq=inq, semana=True),
          "No se pudo leer la agenda."),
         ("HÁBITOS DE HOY", lambda: habitos.resumen_dia(inq=inq),
          "No se pudieron leer los hábitos."),
         ("APUNTES DE HOY", lambda: _apuntes_de_hoy(inq), "No se pudieron leer los apuntes."),
-    )
+    ]
+    if inq is not None and (inq.puede("tarifas") or inq.puede("faq")):
+        bloques.append(("SERVICIO QUE OFRECES",
+                        lambda: conocimiento.para_prompt(inq.ruta) or "Sin tarifas ni FAQ escritas.",
+                        "No se pudo leer el conocimiento del servicio."))
     return _recortar("\n\n".join(
         f"## {titulo}\n{_o_nada(hacer, si_falla)}" for titulo, hacer, si_falla in bloques
     ))

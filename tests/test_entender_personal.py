@@ -384,5 +384,67 @@ class TestElSaludoNoEsDiario(unittest.TestCase):
         self.assertFalse(entender.es_saludo("   "))
 
 
+class TestPreguntaCubreElServicio(unittest.TestCase):
+    """«Pregunta» ya no es solo sobre lo apuntado: también sobre el
+    servicio, condicionado a la capacidad real del inquilino (ADR-025, fase
+    2). Sin esto, «¿cuánto cuesta el plan negocio?» caería en «diario» por
+    defecto y `conversar.py` nunca llegaría a verla, aunque ya sepa leer
+    tarifas.md.
+    """
+
+    def _inq(self, capacidades):
+        import tempfile
+        from pathlib import Path
+
+        from hugin import inquilino as hugin_inquilino
+        return hugin_inquilino.Inquilino(
+            nombre="prueba", ruta=Path(tempfile.mkdtemp()),
+            capacidades=frozenset(capacidades), base=None)
+
+    def test_sin_inquilino_no_menciona_el_servicio(self):
+        texto = entender._instrucciones(None)
+        self.assertNotIn("cuánto cuesta el plan negocio", texto)
+        self.assertNotIn("servicio que se ofrece", texto)
+
+    def test_inquilino_sin_capacidad_de_negocio_no_lo_menciona(self):
+        inq = self._inq({"tareas", "habitos"})
+        texto = entender._instrucciones(inq)
+        self.assertNotIn("cuánto cuesta el plan negocio", texto)
+
+    def test_inquilino_con_tarifas_si_lo_menciona(self):
+        inq = self._inq({"tareas", "tarifas"})
+        texto = entender._instrucciones(inq)
+        self.assertIn("cuánto cuesta el plan negocio", texto)
+        self.assertIn("servicio que se ofrece", texto)
+
+    def test_inquilino_con_faq_tambien_lo_menciona(self):
+        inq = self._inq({"faq"})
+        self.assertIn("servicio que se ofrece", entender._instrucciones(inq))
+
+    def test_entender_pasa_el_inq_a_preguntar(self):
+        vistos = {}
+
+        def preguntar(frase, inq=None):
+            vistos["inq"] = inq
+            return {"intencion": "diario", "texto": None, "nombre": None,
+                   "hecho": True, "valor": None, "unidad": None,
+                   "cuando": None, "confianza": "alta"}
+
+        inq = self._inq({"tarifas"})
+        entender.entender("cualquier cosa", preguntar=preguntar, inq=inq)
+        self.assertIs(vistos["inq"], inq)
+
+    def test_un_preguntar_de_los_de_antes_sigue_valiendo(self):
+        # `lambda frase: {...}`, sin `inq`: no puede reventar porque ahora
+        # entender() intenta pasarle un inquilino.
+        def preguntar(frase):
+            return {"intencion": "diario", "texto": None, "nombre": None,
+                   "hecho": True, "valor": None, "unidad": None,
+                   "cuando": None, "confianza": "alta"}
+
+        resultado = entender.entender("x", preguntar=preguntar, inq=self._inq({"tarifas"}))
+        self.assertIsNone(resultado)  # "diario" -> None, pero no reventó
+
+
 if __name__ == "__main__":
     unittest.main()

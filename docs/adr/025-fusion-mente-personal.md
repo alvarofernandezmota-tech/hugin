@@ -59,6 +59,20 @@ inquilinos con capacidades distintas, atendidos por el mismo motor.
    con `tareas`/`habitos`/`apuntes` entiende de diario. Un inquilino con
    varias capacidades a la vez (el caso del autónomo del docstring de
    `inquilino.py`) entiende de las dos cosas sin bifurcar código.
+
+   **Primer paso, cerrado el 2026-09-19**: `personal/conversar.py` —el lado
+   de *leer*, no el de clasificar— ya ve el conocimiento de negocio
+   (`tarifas.md`/`faq.md`, vía `conocimiento.para_prompt()`) cuando el
+   inquilino tiene capacidad `tarifas` o `faq`, con la misma regla de la
+   casa ("un precio sale de la tabla o no sale") repetida en sus
+   `INSTRUCCIONES`. Se hizo contra un caso real, no especulativo: el propio
+   inquilino de Álvaro Fernández (`inquilinos/alvaro-fernandez/`, fuera del
+   repo) tiene capacidades mixtas —persona y el negocio de ofrecer hugin
+   como servicio— y hoy ya puede contestar por Telegram a «¿cuánto cuesta
+   el plan negocio?» tirando de su propio `tarifas.md`. Queda pendiente el
+   lado de *escribir/clasificar*: `personal/entender.py` todavía no sabe
+   distinguir una pregunta de precio de una tarea cuando el inquilino tiene
+   ambas capacidades a la vez.
 3. **Un modelo de cita único** — `mente.recepcion.Cita` (con `acotada`,
    `franja`, el flujo de negocio) y el `dict` de `personal/citas.py` (con
    `sin_franja`, `duracion`, choques) comparten ya casi el mismo problema

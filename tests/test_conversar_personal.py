@@ -175,6 +175,45 @@ class TestLosDatosConInquilino(unittest.TestCase):
             self.assertNotIn("No se pudieron leer", texto)
             self.assertNotIn("No se pudo leer", texto)
 
+    def test_sin_capacidad_de_negocio_no_hay_bloque_de_servicio(self):
+        import tempfile
+        from hugin import inquilino as hugin_inquilino
+
+        with tempfile.TemporaryDirectory() as tmp:
+            inq = hugin_inquilino.Inquilino(
+                nombre="prueba", ruta=Path(tmp),
+                capacidades=frozenset({"tareas", "agenda", "habitos", "apuntes"}),
+                base=None)
+            self.assertNotIn("SERVICIO QUE OFRECES", conversar.datos(inq))
+
+    def test_con_tarifas_el_bloque_de_servicio_lleva_el_precio_real(self):
+        import tempfile
+        from hugin import inquilino as hugin_inquilino
+
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "tarifas.md").write_text(
+                "| Servicio | Precio |\n|---|---|\n| Plan persona | 9 € |\n",
+                encoding="utf-8")
+            inq = hugin_inquilino.Inquilino(
+                nombre="prueba", ruta=Path(tmp),
+                capacidades=frozenset({"tareas", "tarifas"}), base=None)
+            texto = conversar.datos(inq)
+            self.assertIn("SERVICIO QUE OFRECES", texto)
+            self.assertIn("Plan persona", texto)
+            self.assertIn("9 €", texto)
+
+    def test_con_faq_pero_sin_tarifas_tambien_sale_el_bloque(self):
+        import tempfile
+        from hugin import inquilino as hugin_inquilino
+
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "faq.md").write_text("## ¿Qué es esto?\nUn bot.\n",
+                                              encoding="utf-8")
+            inq = hugin_inquilino.Inquilino(
+                nombre="prueba", ruta=Path(tmp),
+                capacidades=frozenset({"tareas", "faq"}), base=None)
+            self.assertIn("SERVICIO QUE OFRECES", conversar.datos(inq))
+
 
 class TestElEnrutado(unittest.TestCase):
     """`entender` tiene que saber decir «esto es una pregunta»."""

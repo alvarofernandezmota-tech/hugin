@@ -12,7 +12,7 @@ from pathlib import Path
 
 # Nada de sys.path: el paquete se instala en editable (`make instalar`).
 RAIZ = Path(__file__).resolve().parent.parent
-CEREBRO = RAIZ / "hugin"
+CEREBRO = RAIZ / "src" / "hugin"
 
 import entorno  # noqa: E402,F401
 

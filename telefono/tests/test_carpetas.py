@@ -109,7 +109,7 @@ class TestLosPuntosDeEntrada(unittest.TestCase):
             # Lo de casa (`dueno.panel`) cuelga de aquí; el cerebro
             # (`hugin.mente.cerebro`) está en la raíz del repo, un nivel por
             # encima, desde el ADR-024.
-            base = RAIZ.parent if orden.startswith("hugin.") else RAIZ
+            base = (RAIZ.parent / "src") if orden.startswith("hugin.") else RAIZ
             ruta = base.joinpath(*orden.split(".")).with_suffix(".py")
             with self.subTest(orden=orden):
                 self.assertTrue(ruta.exists(), f"«make» llama a {orden} y no está")
@@ -243,8 +243,8 @@ class TestLaFronteraConHugin(unittest.TestCase):
         # dos puertas. Un submódulo aquí volvería a ser circular.
         self.assertFalse((RAIZ / ".gitmodules").exists(),
                          "vuelve a haber un submódulo dentro de telefono/")
-        self.assertTrue((RAIZ.parent / "hugin" / "mente" / "recepcion.py").exists(),
-                        "no encuentro el cerebro en la raíz del repo")
+        self.assertTrue((RAIZ.parent / "src" / "hugin" / "mente" / "recepcion.py").exists(),
+                        "no encuentro el cerebro en src/ de la raíz del repo")
 
     def test_make_pruebas_corre_tambien_las_del_cerebro(self):
         # Sin esto, `make pruebas` sale en verde con el cerebro roto. Y no

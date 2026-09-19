@@ -18,6 +18,7 @@ conectores.
 4. [Dominio y persistencia](04-dominio-y-persistencia.md)
 5. [Conectores](05-conectores.md)
 6. [Instalaciones y aislamiento](06-instalaciones-y-aislamiento.md)
+7. [Hugin, bot vivo: visión de destino](07-hugin-bot-vivo.md)
 
 ## Regla principal
 

@@ -1,6 +1,6 @@
 ---
 tipo: changelog
-fecha: 2026-09-12
+fecha: 2026-09-19
 repo: hugin
 etiquetas: [cambios, historial]
 ---
@@ -83,6 +83,52 @@ Parcheado metiendo los verbos de encargar en la lista de relleno. **Es la
 segunda vez hoy que se arregla el mismo síntoma** —la primera fue con
 «tarda»— y eso ya dice lo que hay: mientras `buscar()` intersecte, la lista de
 palabras vacías nunca va a estar completa.
+
+---
+
+## 2026-09-19 — franja en `personal/`, motor `auto`, y hugin pasa a fuente de verdad de su documentación
+
+### `citas.confirmar_hora()` y ambigüedad de franja en `personal/`
+
+`personal/fechas.py` gana `interpretar_con_franja()`: misma regla que
+`mente/fechas.py` ("una hora sin franja no se supone"), pero en vez de
+rechazar la cita, `personal/citas.agregar()` la guarda marcada
+`sin_franja: true` — aquí quien apunta y quien confirma la hora es la misma
+persona. `confirmar_hora(id, hora, inq)` la fija y quita la marca.
+
+### `GJALLARHORN_LLM=auto`: nube primero, Ollama de respaldo
+
+`mente/cerebro.py` prueba los motores de nube con clave puesta (Claude,
+Groq, Google, en ese orden) y cae a Ollama si todos fallan o no hay
+ninguna clave puesta.
+
+### Selector de motor LLM único (`hugin/motores.py`)
+
+Primera fase de [ADR-025](adr/025-fusion-mente-personal.md): `mente/cerebro.py`
+y `personal/entender.py` tenían el mismo `proveedor()`/`modelo()`/`ollama()`
+byte a byte, salvo el prefijo de variable de entorno
+(`GJALLARHORN_LLM`/`MIDGAROR_LLM`). Ahora los dos delegan en el mismo
+`SelectorDeMotor`. El modo `auto` llega gratis a los dos.
+
+### hugin pasa a ser la fuente de verdad de su propia documentación
+
+`docs/adr/`, `docs/ecosistema/`, `docs/infraestructura/` y `docs/sesiones/`
+(esqueleto). Se portaron verbatim desde
+[midgaror](https://github.com/alvarofernandezmota-tech/midgaror):
+[ADR-019](adr/019-cerebro-de-gjallarhorn-en-hugin.md),
+[ADR-024](adr/024-un-cerebro-dos-puertas.md) y la
+[auditoría de thea-ia](ecosistema/auditoria-thea-ia.md). El propio ADR-024
+confirma, en su punto 4, la decisión que motiva el ADR-025 de este repo:
+"hay dos capas de entender y una sobra". Las sesiones de trabajo día a día
+siguen documentándose en midgaror.
+
+### Pendiente, con dueño
+
+- **Fases 2-4 del ADR-025**: un clasificador único gobernado por
+  `inq.puede(capacidad)`, un modelo de cita único, y un `Conversacion`
+  persistible entre mensajes (hoy vive en memoria de la llamada).
+- **Archivar `gjallarhorn` y `bifrost`** (lo pide el ADR-024) — pendiente de
+  confirmar que Madre ya no arranca desde `midgaror-bot/proyectos/bifrost`.
 
 ---
 

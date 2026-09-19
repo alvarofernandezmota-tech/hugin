@@ -94,6 +94,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from hugin import motores
 from hugin.mente import conocimiento
 from hugin.mente import rag
 
@@ -138,55 +139,38 @@ class Entendido:
         return self.confianza != "baja"
 
 
-def proveedor() -> str:
-    """Qué motor se usa: «anthropic», «ollama», «groq», «google» o «» si no hay ninguno.
+MODELO_GROQ_POR_DEFECTO = "llama-3.3-70b-versatile"
+MODELO_GOOGLE_POR_DEFECTO = "gemini-2.5-flash"
 
-    Sin `GJALLARHORN_LLM`, lo de siempre: Claude si hay clave y nada si no.
-    Así, quien ya lo tenía funcionando no tiene que tocar nada. Groq y
-    Google (Gemini) son gratuitos con límite de peticiones, cada uno con su
-    propia clave (`GROQ_API_KEY`, `GOOGLE_API_KEY`) — elegir uno sin su
-    clave puesta no enciende nada, como ya pasaba con Claude.
-    """
-    from hugin.guardado import ajustes
-    ajustes.leer()
-    elegido = os.environ.get("GJALLARHORN_LLM", "").strip().lower()
-    if elegido in ("no", "off", "ninguno", "0"):
-        return ""
-    if elegido == "auto":
-        return "auto"
-    if elegido in ("ollama", "local"):
-        return "ollama"
-    if elegido in ("groq",):
-        return "groq" if os.environ.get("GROQ_API_KEY", "").strip() else ""
-    if elegido in ("google", "gemini"):
-        return "google" if os.environ.get("GOOGLE_API_KEY", "").strip() else ""
-    # "anthropic"/"claude" explícitos y cualquier otra cosa (vacío, una
-    # errata) acaban en el mismo sitio: Claude si hay clave, nada si no.
-    return "anthropic" if os.environ.get("ANTHROPIC_API_KEY", "").strip() else ""
+# El selector de motor es el mismo que usa `personal/entender.py` — ver
+# `hugin/motores.py`, primer paso de la fusión mente/+personal/ (docs/adr/).
+# `leer_ajustes=True`: este es el bot de negocio, y `proveedor()` tiene que
+# cargar el `.env` del negocio antes de mirar el entorno.
+_selector = motores.SelectorDeMotor(
+    variable="GJALLARHORN_LLM", prefijo="GJALLARHORN", leer_ajustes=True,
+    modelo_por_defecto=MODELO_POR_DEFECTO,
+    modelo_local_por_defecto=MODELO_LOCAL_POR_DEFECTO,
+    modelo_groq_por_defecto=MODELO_GROQ_POR_DEFECTO,
+    modelo_google_por_defecto=MODELO_GOOGLE_POR_DEFECTO,
+    ollama_por_defecto=OLLAMA_POR_DEFECTO)
+
+
+def proveedor() -> str:
+    """Qué motor se usa: «anthropic», «ollama», «groq», «google», «auto» o «» si no hay ninguno."""
+    return _selector.proveedor()
 
 
 def configurado() -> bool:
     """¿Hay algún modelo con el que contar? Sin él, esto no existe."""
-    return bool(proveedor())
-
-
-MODELO_GROQ_POR_DEFECTO = "llama-3.3-70b-versatile"
-MODELO_GOOGLE_POR_DEFECTO = "gemini-2.5-flash"
+    return _selector.configurado()
 
 
 def modelo() -> str:
-    propio = os.environ.get("GJALLARHORN_LLM_MODELO", "").strip()
-    if propio:
-        return propio
-    return {
-        "ollama": MODELO_LOCAL_POR_DEFECTO,
-        "groq": MODELO_GROQ_POR_DEFECTO,
-        "google": MODELO_GOOGLE_POR_DEFECTO,
-    }.get(proveedor(), MODELO_POR_DEFECTO)
+    return _selector.modelo()
 
 
 def ollama() -> str:
-    return os.environ.get("GJALLARHORN_OLLAMA", "").strip() or OLLAMA_POR_DEFECTO
+    return _selector.ollama()
 
 
 def _esquema(servicios: list[str]) -> dict:
@@ -415,10 +399,7 @@ def _llamar(preguntar, frase, servicios, turnos, sabido, esperando) -> dict:
 
 def _motores_nube() -> list[str]:
     """Los motores en la nube con clave puesta, en el orden en que se prueban."""
-    candidatos = (("anthropic", "ANTHROPIC_API_KEY"),
-                  ("groq", "GROQ_API_KEY"),
-                  ("google", "GOOGLE_API_KEY"))
-    return [motor for motor, var in candidatos if os.environ.get(var, "").strip()]
+    return _selector.motores_nube()
 
 
 def _llamar_con(motor: str | None, preguntar, frase, servicios, turnos, sabido, esperando) -> dict:

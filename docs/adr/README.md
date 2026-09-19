@@ -14,6 +14,12 @@ está todavía en el scope de esta sesión — cuando se conecte, los ADR que
 mandan aquí se portan a esta carpeta, con su número y su fecha original, y
 `docs/README.md` deja de remitir a midgaror.
 
+## Los ADR de hugin
+
+| ADR | De qué trata | Estado |
+|---|---|---|
+| [001](001-fusion-mente-personal.md) | Un solo cerebro, gobernado por las capacidades del inquilino | Aceptado, fase 1 de 4 cerrada |
+
 ## Pendientes de portar desde midgaror
 
 | ADR | De qué trata | Estado |
